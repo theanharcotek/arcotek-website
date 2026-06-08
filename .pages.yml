@@ -6,8 +6,8 @@ content:
   - name: posts
     label: Bài viết
     type: collection
-    path: posts
-    filename: "{fields.slug}.md"
+    path: _posts
+    filename: "{fields.date}-{fields.slug}.md"
     fields:
       - name: title
         label: Tiêu đề
