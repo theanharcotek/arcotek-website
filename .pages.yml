@@ -9,6 +9,12 @@ content:
     path: _posts
     filename: "{fields.date}-{fields.slug}.md"
     fields:
+      - name: layout
+        label: Layout
+        type: string
+        default: post
+        hidden: true
+
       - name: title
         label: Tiêu đề
         type: string
