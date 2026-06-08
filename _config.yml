@@ -1,0 +1,11 @@
+title: Arcotek
+description: Website Công ty TNHH Xây dựng Kỹ thuật Arcotek
+url: "https://arcotek.vn"
+baseurl: ""
+
+permalink: /tin-tuc/:title/
+
+markdown: kramdown
+
+plugins:
+  - jekyll-feed
