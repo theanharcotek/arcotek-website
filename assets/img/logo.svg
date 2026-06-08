@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 84" fill="none" role="img" aria-label="ARCOTEK">
+  <!-- Left leg of A (constant-width navy stroke) -->
+  <path d="M38 6 L50 6 L20 78 L8 78 Z" fill="#0A2A4A"/>
+  <!-- Right leg of A — upper navy -->
+  <path d="M50 6 L62 6 L78.7 46 L66.7 46 Z" fill="#0A2A4A"/>
+  <!-- Right leg of A — lower red accent (PCCC) -->
+  <path d="M66.7 46 L78.7 46 L92 78 L80 78 Z" fill="#CA0B09"/>
+  <!-- Ascending buildings (Công trình) -->
+  <rect x="33" y="58" width="8" height="20" fill="#0A2A4A"/>
+  <rect x="43" y="48" width="8" height="30" fill="#0A2A4A"/>
+  <rect x="53" y="38" width="8" height="40" fill="#0A2A4A"/>
+</svg>
