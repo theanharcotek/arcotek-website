@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title }} | Arcotek</title>
+  <meta name="description" content="{{ page.description }}">
+  <link rel="stylesheet" href="/assets/css/styles.css">
+</head>
+
+<body>
+  <header style="padding:20px 32px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;gap:20px;">
+    <a href="/" style="display:flex;align-items:center;text-decoration:none;color:#111;font-weight:700;">
+      <img src="/assets/img/logo.png" alt="Arcotek" style="height:48px;margin-right:12px;">
+      <span>ARCOTEK</span>
+    </a>
+
+    <nav style="display:flex;gap:18px;flex-wrap:wrap;">
+      <a href="/">Trang chủ</a>
+      <a href="/dich-vu.html">Dịch vụ</a>
+      <a href="/du-an.html">Dự án</a>
+      <a href="/tin-tuc.html">Tin tức</a>
+      <a href="/lien-he.html">Liên hệ</a>
+    </nav>
+  </header>
+
+  <main style="max-width:900px;margin:40px auto;padding:0 20px;">
+    <article>
+      {% if page.image %}
+      <img src="{{ page.image }}" alt="{{ page.title }}" style="width:100%;max-height:420px;object-fit:cover;border-radius:18px;margin-bottom:24px;">
+      {% endif %}
+
+      <p style="color:#777;margin-bottom:10px;">{{ page.date | date: "%d/%m/%Y" }}</p>
+
+      <h1 style="font-size:38px;line-height:1.2;margin-bottom:16px;">{{ page.title }}</h1>
+
+      {% if page.description %}
+      <p style="font-size:18px;color:#555;line-height:1.7;margin-bottom:28px;">{{ page.description }}</p>
+      {% endif %}
+
+      <div style="font-size:17px;line-height:1.8;">
+        {{ content }}
+      </div>
+    </article>
+  </main>
+
+  <footer style="text-align:center;padding:30px 20px;color:#777;border-top:1px solid #eee;">
+    © Arcotek - Tư vấn thiết kế, thi công xây dựng và PCCC
+  </footer>
+
+  <script src="/assets/js/main.js"></script>
+</body>
+</html>
