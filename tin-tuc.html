@@ -1,3 +1,5 @@
+---
+---
 <!DOCTYPE html>
 <html lang="vi" class="no-js">
 <head>
@@ -40,15 +42,34 @@
       </div>
     </section>
 
-    <section class="section" style="padding-top:0">
-      <div class="container grid cards-3" data-stagger>
-        <article class="post"><div class="thumb"><div class="ph" data-ph="Ảnh bài viết"></div></div><div class="body"><span class="date">07.06.2026</span><h3><a href="bai-viet-mau.html" style="color:inherit">Quy định mới về thẩm duyệt thiết kế PCCC 2026</a></h3><p class="muted">Tổng hợp những thay đổi quan trọng trong quy trình thẩm duyệt và nghiệm thu mà doanh nghiệp cần nắm rõ.</p><a class="text-red" href="bai-viet-mau.html" style="font-weight:700;margin-top:0.6rem;display:inline-block" data-i18n="cta.readmore">Đọc tiếp</a></div></article>
-        <article class="post"><div class="thumb"><div class="ph" data-ph="Ảnh bài viết"></div></div><div class="body"><span class="date">28.05.2026</span><h3>Bảo trì hệ thống chữa cháy: vì sao quan trọng?</h3><p class="muted">Hướng dẫn lịch bảo trì định kỳ giúp hệ thống PCCC luôn sẵn sàng và kéo dài tuổi thọ thiết bị.</p><a class="text-red" href="#" style="font-weight:700;margin-top:0.6rem;display:inline-block" data-i18n="cta.readmore">Đọc tiếp</a></div></article>
-        <article class="post"><div class="thumb"><div class="ph" data-ph="Ảnh bài viết"></div></div><div class="body"><span class="date">15.05.2026</span><h3>So sánh các loại hệ thống chữa cháy phổ biến</h3><p class="muted">Sprinkler, khí sạch hay bọt foam — lựa chọn nào phù hợp cho nhà máy và kho xưởng của bạn?</p><a class="text-red" href="#" style="font-weight:700;margin-top:0.6rem;display:inline-block" data-i18n="cta.readmore">Đọc tiếp</a></div></article>
-        <article class="post"><div class="thumb"><div class="ph" data-ph="Ảnh bài viết"></div></div><div class="body"><span class="date">02.05.2026</span><h3>5 lỗi thường gặp khiến hồ sơ PCCC bị từ chối</h3><p class="muted">Kinh nghiệm thực tế giúp doanh nghiệp chuẩn bị hồ sơ thẩm duyệt thông qua ngay lần đầu.</p><a class="text-red" href="#" style="font-weight:700;margin-top:0.6rem;display:inline-block" data-i18n="cta.readmore">Đọc tiếp</a></div></article>
-        <article class="post"><div class="thumb"><div class="ph" data-ph="Ảnh bài viết"></div></div><div class="body"><span class="date">20.04.2026</span><h3>Hướng dẫn sử dụng bình chữa cháy đúng cách</h3><p class="muted">Cẩm nang an toàn cơ bản mọi nhân viên cần biết để xử lý đám cháy giai đoạn đầu.</p><a class="text-red" href="#" style="font-weight:700;margin-top:0.6rem;display:inline-block" data-i18n="cta.readmore">Đọc tiếp</a></div></article>
-        <article class="post"><div class="thumb"><div class="ph" data-ph="Ảnh bài viết"></div></div><div class="body"><span class="date">08.04.2026</span><h3>Tiêu chuẩn TCVN về hệ thống báo cháy tự động</h3><p class="muted">Những điểm cốt lõi trong tiêu chuẩn thiết kế hệ thống báo cháy cho công trình công nghiệp.</p><a class="text-red" href="#" style="font-weight:700;margin-top:0.6rem;display:inline-block" data-i18n="cta.readmore">Đọc tiếp</a></div></article>
-      </div>
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div class="grid cards-3" data-stagger>
+      {% for post in site.posts %}
+      <article class="post">
+        <a href="{{ post.url }}" style="text-decoration:none;color:inherit;">
+          <div class="thumb">
+            {% if post.image %}
+            <img src="{{ post.image }}" alt="{{ post.title }}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">
+            {% else %}
+            <div class="ph" data-ph="Ảnh bài viết"></div>
+            {% endif %}
+          </div>
+
+          <div class="body">
+            <span class="date">{{ post.date | date: "%d.%m.%Y" }}</span>
+            <h3>{{ post.title }}</h3>
+            {% if post.description %}
+            <p>{{ post.description }}</p>
+            {% endif %}
+            <span class="readmore">Đọc tiếp →</span>
+          </div>
+        </a>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
     </section>
   </main>
 
