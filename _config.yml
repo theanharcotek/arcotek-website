@@ -6,6 +6,12 @@ baseurl: ""
 permalink: /tin-tuc/:title/
 
 markdown: kramdown
+future: true
 
-plugins:
-  - jekyll-feed
+include:
+  - tin-tuc.html
+  - index.html
+  - dich-vu.html
+  - du-an.html
+  - ve-chung-toi.html
+  - lien-he.html
