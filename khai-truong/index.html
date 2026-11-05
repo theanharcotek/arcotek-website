@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thiệp mời Lễ khai trương – Arcotek</title>
+<meta name="description" content="Trân trọng kính mời Quý khách dự Lễ khai trương Công ty TNHH Xây dựng Kỹ thuật Arcotek – 14:00 ngày 07/11/2026, Số 100 Đồng Khởi, phường Trảng Dài, Đồng Nai.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Thiệp mời Lễ khai trương Công ty Arcotek">
+<meta property="og:description" content="14:00 Lễ khai trương · 18:00 Khai tiệc · Thứ Bảy 07/11/2026 · Số 100 Đồng Khởi, phường Trảng Dài, Đồng Nai">
+<meta property="og:image" content="https://arcotek.vn/khai-truong/og.jpg">
+<meta property="og:url" content="https://arcotek.vn/khai-truong/">
+<meta name="theme-color" content="#0E2240">
+<link rel="icon" href="logo.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap">
+<style>
+:root{
+  --navy:#0E2240; --navy-2:#162F55; --red:#D9161F; --red-dark:#B3121A;
+  --ink:#0E2240; --muted:#4A5A72; --line:#D7DEE8; --paper:#FFFFFF; --bg:#EEF1F5;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Be Vietnam Pro',system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;min-height:100vh}
+.serif{font-family:'Playfair Display',Georgia,serif}
+a{color:var(--navy)}
+button,a.btn{font:inherit}
+
+/* ---------- Envelope ---------- */
+.envelope-screen{position:fixed;inset:0;z-index:20;background:radial-gradient(circle at 50% 35%,var(--navy-2),var(--navy) 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:#fff;text-align:center;transition:opacity .7s ease .5s,visibility 0s linear 1.2s}
+.envelope-screen.opened{opacity:0;visibility:hidden}
+.env-hint{font-size:13px;letter-spacing:4px;color:#C9D3E3;margin:0 0 22px}
+.envelope{position:relative;width:min(340px,86vw);aspect-ratio:3/2;background:#F4F6F9;border-radius:6px;box-shadow:0 30px 60px rgba(0,0,0,.35);perspective:900px}
+.envelope::before{content:"";position:absolute;inset:0;border-radius:6px;background:linear-gradient(to top right,#E3E8EF 50%,transparent 50.5%) left/50% 100% no-repeat,linear-gradient(to top left,#E3E8EF 50%,transparent 50.5%) right/50% 100% no-repeat}
+.flap{position:absolute;top:0;left:0;right:0;height:62%;background:#FFFFFF;clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transition:transform .7s ease;z-index:2;filter:drop-shadow(0 3px 3px rgba(0,0,0,.08))}
+.opened .flap{transform:rotateX(180deg)}
+.seal{position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:#fff;border:3px solid var(--red);display:flex;align-items:center;justify-content:center;z-index:3;box-shadow:0 6px 14px rgba(0,0,0,.2);transition:opacity .3s}
+.seal img{width:58px;height:auto}
+.opened .seal{opacity:0}
+.env-to{position:absolute;left:0;right:0;bottom:14px;z-index:1;color:var(--navy);font-size:13px}
+.env-name{margin:28px 0 6px;font-size:15px;color:#C9D3E3}
+.env-name strong{display:block;margin-top:6px;font-family:'Playfair Display',Georgia,serif;font-size:26px;color:#fff;font-weight:600}
+.open-btn{margin-top:26px;min-height:50px;padding:0 34px;border:0;border-radius:999px;background:var(--red);color:#fff;font-weight:600;font-size:16px;letter-spacing:1px;cursor:pointer;box-shadow:0 10px 24px rgba(217,22,31,.35);animation:pulse 2.2s ease-in-out infinite}
+.open-btn:hover{background:var(--red-dark)}
+.open-btn:focus-visible,.btn:focus-visible{outline:3px solid #9FC1FF;outline-offset:3px}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+
+/* ---------- Card ---------- */
+main{padding:28px 16px 48px;display:flex;justify-content:center}
+.card{position:relative;width:100%;max-width:520px;background:var(--paper);border-radius:4px;box-shadow:0 20px 50px rgba(14,34,64,.14);overflow:hidden;opacity:0;transform:translateY(40px);transition:opacity .8s ease .9s,transform .8s ease .9s}
+.show .card{opacity:1;transform:none}
+.card::before,.card::after{content:"";position:absolute;left:0;right:0;height:8px;background:var(--navy)}
+.card::before{top:0}.card::after{bottom:0;background:var(--red)}
+.frame{margin:22px;border:1px solid var(--line);padding:36px 26px 30px;text-align:center;position:relative}
+.frame::before{content:"";position:absolute;inset:6px;border:1px solid #EDF0F4;pointer-events:none}
+.logo{width:190px;max-width:60%;height:auto;display:block;margin:0 auto}
+.eyebrow{display:flex;align-items:center;justify-content:center;gap:14px;margin:34px 0 10px;font-size:13px;font-weight:600;letter-spacing:6px;color:var(--muted)}
+.eyebrow::before,.eyebrow::after{content:"";width:44px;height:1px;background:var(--line)}
+h1{margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:clamp(40px,11vw,58px);line-height:1.08;color:var(--navy)}
+.to{margin:28px auto 0;display:flex;align-items:flex-end;gap:10px;max-width:400px}
+.to span:first-child{font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:19px;white-space:nowrap}
+.to .guest{flex:1;border-bottom:1px dashed #9AA8BC;font-weight:600;font-size:18px;padding-bottom:2px;min-height:28px}
+.lead{margin:24px 0 4px;font-size:16px;font-weight:300;line-height:1.7;color:var(--muted)}
+.company{margin:0;font-size:17px;font-weight:700;letter-spacing:.4px;line-height:1.5}
+.date{margin:32px auto 0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;max-width:380px}
+.date .side{font-size:13px;font-weight:600;letter-spacing:2.5px;color:var(--muted);line-height:1.6}
+.date .side:first-child{text-align:right}.date .side:last-child{text-align:left}
+.date .day{font-family:'Playfair Display',Georgia,serif;font-size:64px;font-weight:700;line-height:1;padding:0 20px;border-left:1px solid var(--line);border-right:1px solid var(--line);color:var(--red)}
+.program{margin:30px 0 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.program div{padding:6px 0}
+.program div+div{border-left:1px solid var(--line)}
+.program b{display:block;font-family:'Playfair Display',Georgia,serif;font-size:36px;color:var(--navy);line-height:1.15}
+.program span{font-size:13px;font-weight:600;letter-spacing:2px;color:var(--muted)}
+
+.countdown{margin:32px 0 0;padding:18px 10px;background:var(--navy);color:#fff;border-radius:4px}
+.countdown p{margin:0 0 12px;font-size:12px;letter-spacing:3px;color:#C9D3E3}
+.cd-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.cd-grid b{display:block;font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.cd-grid span{font-size:11px;letter-spacing:1px;color:#C9D3E3}
+.cd-done{font-size:16px;font-weight:600}
+
+.place{margin:32px 0 0}
+.label{font-size:12px;font-weight:600;letter-spacing:4px;color:var(--muted);margin:0 0 8px}
+.addr{margin:0;font-size:16px;line-height:1.6;font-weight:500}
+.map{margin-top:16px;width:100%;height:220px;border:0;border-radius:4px;background:#E9EDF2;display:block}
+
+.actions{margin:20px 0 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:10px 12px;border-radius:4px;border:1px solid var(--navy);background:#fff;color:var(--navy);font-weight:600;font-size:14px;text-decoration:none;cursor:pointer}
+.btn:hover{background:#F1F4F8}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+.btn.primary:hover{background:var(--red-dark)}
+.btn svg{width:18px;height:18px;flex:none}
+.btn[hidden]{display:none}
+
+.closing{margin:34px 0 0;font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:19px;line-height:1.5;color:var(--navy)}
+.sign{margin:12px 0 0;font-size:12px;font-weight:600;letter-spacing:2px;color:var(--muted)}
+footer{text-align:center;font-size:13px;color:var(--muted);padding:0 16px 32px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--navy);color:#fff;padding:12px 18px;border-radius:999px;font-size:14px;opacity:0;transition:.3s;z-index:40;pointer-events:none}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* link generator (?taolink) */
+.gen{max-width:520px;margin:20px auto 0;background:#fff;border:2px dashed var(--red);border-radius:6px;padding:16px;font-size:14px}
+.gen h2{margin:0 0 10px;font-size:16px}
+.gen label{display:block;font-weight:600;margin-bottom:6px}
+.gen input{width:100%;min-height:44px;padding:8px 10px;border:1px solid #9AA8BC;border-radius:4px;font:inherit}
+.gen output{display:block;margin:10px 0;word-break:break-all;color:var(--muted)}
+
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:30;overflow:hidden}
+.confetti i{position:absolute;top:-20px;width:8px;height:14px;opacity:.9;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+@media (max-width:380px){.frame{margin:14px;padding:28px 16px 24px}.date .day{font-size:52px;padding:0 14px}.program b{font-size:30px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01s!important;transition-delay:0s!important}}
+</style>
+</head>
+<body>
+
+<div class="envelope-screen" id="envelope">
+  <p class="env-hint">THIỆP MỜI KHAI TRƯƠNG</p>
+  <div class="envelope" aria-hidden="true">
+    <div class="flap"></div>
+    <div class="seal"><img src="logo.webp" alt=""></div>
+    <div class="env-to">Công ty TNHH Xây dựng Kỹ thuật Arcotek</div>
+  </div>
+  <p class="env-name">Kính gửi<strong id="envName">Quý khách</strong></p>
+  <button class="open-btn" id="openBtn" type="button">Mở thiệp</button>
+</div>
+
+<div id="genWrap"></div>
+
+<main>
+  <article class="card" aria-labelledby="title">
+    <div class="frame">
+      <img class="logo" src="logo.webp" alt="ARCOTEK – Construction and Fire Protection" width="640" height="440">
+
+      <p class="eyebrow">THIỆP MỜI</p>
+      <h1 id="title">Lễ Khai Trương</h1>
+
+      <div class="to"><span>Kính gửi:</span><span class="guest" id="guest"></span></div>
+
+      <p class="lead">Trân trọng kính mời Quý khách đến dự Lễ khai trương</p>
+      <p class="company">CÔNG TY TNHH XÂY DỰNG KỸ THUẬT ARCOTEK</p>
+
+      <div class="date" aria-label="Thứ Bảy, ngày 07 tháng 11 năm 2026">
+        <div class="side">THỨ BẢY</div>
+        <div class="day">07</div>
+        <div class="side">THÁNG 11<br>NĂM 2026</div>
+      </div>
+
+      <div class="program">
+        <div><b>14:00</b><span>LỄ KHAI TRƯƠNG</span></div>
+        <div><b>18:00</b><span>KHAI TIỆC</span></div>
+      </div>
+
+      <div class="countdown" id="countdown" aria-live="polite">
+        <p>CÒN LẠI ĐẾN GIỜ KHAI TRƯƠNG</p>
+        <div class="cd-grid">
+          <div><b id="cdD">--</b><span>NGÀY</span></div>
+          <div><b id="cdH">--</b><span>GIỜ</span></div>
+          <div><b id="cdM">--</b><span>PHÚT</span></div>
+          <div><b id="cdS">--</b><span>GIÂY</span></div>
+        </div>
+      </div>
+
+      <div class="place">
+        <p class="label">ĐỊA ĐIỂM</p>
+        <p class="addr">Số 100, đường Đồng Khởi, phường Trảng Dài,<br>thành phố Đồng Nai</p>
+        <iframe class="map" title="Bản đồ địa điểm khai trương Arcotek" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=100%20%C4%90%E1%BB%93ng%20Kh%E1%BB%9Fi%2C%20Tr%E1%BA%A3ng%20D%C3%A0i%2C%20Bi%C3%AAn%20H%C3%B2a%2C%20%C4%90%E1%BB%93ng%20Nai&z=16&output=embed"></iframe>
+      </div>
+
+      <div class="actions">
+        <a class="btn primary" id="mapBtn" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          Chỉ đường
+        </a>
+        <button class="btn" id="shareBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+          Chia sẻ
+        </button>
+        <a class="btn" id="gcalBtn" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>
+          Google Lịch
+        </a>
+        <button class="btn" id="icsBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>
+          Lịch iPhone
+        </button>
+        <a class="btn" id="phoneBtn" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h3l2 5-2.5 1.5a11 11 0 0 0 7 7L16 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2z"/></svg>
+          Gọi xác nhận
+        </a>
+        <a class="btn" id="zaloBtn" target="_blank" rel="noopener" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/></svg>
+          Nhắn Zalo
+        </a>
+      </div>
+
+      <p class="closing">Sự hiện diện của Quý khách là niềm vinh hạnh của chúng tôi!</p>
+      <p class="sign">BAN GIÁM ĐỐC CÔNG TY ARCOTEK</p>
+    </div>
+  </article>
+</main>
+<footer><a href="https://arcotek.vn/">arcotek.vn</a></footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ====== CẤU HÌNH – sửa tại đây ====== */
+var CONFIG = {
+  phone: "",            // VD: "0909123456" – để trống thì ẩn nút "Gọi xác nhận"
+  zalo: "",             // VD: "0909123456" – để trống thì ẩn nút "Nhắn Zalo"
+  start: "2026-11-07T14:00:00+07:00",
+  end:   "2026-11-07T21:00:00+07:00",
+  title: "Lễ khai trương Công ty TNHH Xây dựng Kỹ thuật Arcotek",
+  address: "Số 100, đường Đồng Khởi, phường Trảng Dài, thành phố Đồng Nai",
+  details: "14:00 Lễ khai trương – 18:00 Khai tiệc. Trân trọng kính mời!"
+};
+/* ==================================== */
+
+(function(){
+  var params = new URLSearchParams(location.search);
+  var name = (params.get("ten") || params.get("khach") || "").trim().slice(0,80);
+  var display = name || "Quý khách";
+  document.getElementById("envName").textContent = display;
+  document.getElementById("guest").textContent = display;
+  if (name) document.title = "Kính mời " + name + " – Khai trương Arcotek";
+
+  // Open envelope
+  var env = document.getElementById("envelope");
+  var openBtn = document.getElementById("openBtn");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function openCard(){
+    env.classList.add("opened");
+    document.body.classList.add("show");
+    if (!reduce) confetti();
+    setTimeout(function(){ var h=document.getElementById("title"); h.setAttribute("tabindex","-1"); h.focus({preventScroll:true}); }, 1300);
+  }
+  openBtn.addEventListener("click", openCard);
+  openBtn.focus();
+
+  function confetti(){
+    var box = document.createElement("div"); box.className = "confetti"; box.setAttribute("aria-hidden","true");
+    var colors = ["#0E2240","#D9161F","#C9D3E3","#F2B705"];
+    for (var i=0;i<70;i++){
+      var p = document.createElement("i");
+      p.style.left = Math.random()*100 + "vw";
+      p.style.background = colors[i%colors.length];
+      p.style.animationDuration = (2.4 + Math.random()*2) + "s";
+      p.style.animationDelay = (0.6 + Math.random()*0.8) + "s";
+      p.style.transform = "rotate(" + (Math.random()*360) + "deg)";
+      box.appendChild(p);
+    }
+    document.body.appendChild(box);
+    setTimeout(function(){ box.remove(); }, 6000);
+  }
+
+  // Countdown
+  var target = new Date(CONFIG.start).getTime();
+  var endT = new Date(CONFIG.end).getTime();
+  var cd = document.getElementById("countdown");
+  function pad(n){ return (n<10?"0":"") + n; }
+  function tick(){
+    var now = Date.now(), diff = target - now;
+    if (diff <= 0){
+      cd.innerHTML = "";
+      var d = document.createElement("div"); d.className = "cd-done";
+      d.textContent = now < endT ? "Lễ khai trương đang diễn ra – hân hạnh đón tiếp Quý khách!" : "Trân trọng cảm ơn Quý khách đã đến chung vui cùng Arcotek!";
+      cd.appendChild(d);
+      return false;
+    }
+    var s = Math.floor(diff/1000);
+    document.getElementById("cdD").textContent = pad(Math.floor(s/86400));
+    document.getElementById("cdH").textContent = pad(Math.floor(s%86400/3600));
+    document.getElementById("cdM").textContent = pad(Math.floor(s%3600/60));
+    document.getElementById("cdS").textContent = pad(s%60);
+    return true;
+  }
+  if (tick()){ var timer = setInterval(function(){ if(!tick()) clearInterval(timer); }, 1000); }
+
+  // Map / calendar links
+  var addrQ = encodeURIComponent("100 Đồng Khởi, Trảng Dài, Biên Hòa, Đồng Nai");
+  document.getElementById("mapBtn").href = "https://www.google.com/maps/search/?api=1&query=" + addrQ;
+  function utc(iso){ return new Date(iso).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,""); }
+  document.getElementById("gcalBtn").href = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+    + "&text=" + encodeURIComponent(CONFIG.title)
+    + "&dates=" + utc(CONFIG.start) + "/" + utc(CONFIG.end)
+    + "&details=" + encodeURIComponent(CONFIG.details + " " + location.origin + location.pathname)
+    + "&location=" + encodeURIComponent(CONFIG.address);
+
+  document.getElementById("icsBtn").addEventListener("click", function(){
+    function esc(t){ return t.replace(/\\/g,"\\\\").replace(/,/g,"\\,").replace(/;/g,"\\;"); }
+    var ics = [
+      "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//ARCOTEK//Khai truong//VI","CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT","UID:khaitruong-20261107@arcotek.vn","DTSTAMP:" + utc(new Date().toISOString()),
+      "DTSTART:" + utc(CONFIG.start),"DTEND:" + utc(CONFIG.end),
+      "SUMMARY:" + esc(CONFIG.title),"LOCATION:" + esc(CONFIG.address),"DESCRIPTION:" + esc(CONFIG.details),
+      "BEGIN:VALARM","TRIGGER:-PT2H","ACTION:DISPLAY","DESCRIPTION:" + esc(CONFIG.title),"END:VALARM",
+      "END:VEVENT","END:VCALENDAR"
+    ].join("\r\n");
+    var blob = new Blob([ics], {type:"text/calendar;charset=utf-8"});
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "khai-truong-arcotek.ics";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+  });
+
+  // Phone / Zalo
+  if (CONFIG.phone){ var pb=document.getElementById("phoneBtn"); pb.href="tel:"+CONFIG.phone.replace(/\s/g,""); pb.hidden=false; }
+  if (CONFIG.zalo){ var zb=document.getElementById("zaloBtn"); zb.href="https://zalo.me/"+CONFIG.zalo.replace(/\s/g,""); zb.hidden=false; }
+
+  // Share
+  var toast = document.getElementById("toast");
+  function say(msg){ toast.textContent = msg; toast.classList.add("on"); setTimeout(function(){ toast.classList.remove("on"); }, 2200); }
+  function copy(text, msg){
+    if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){ say(msg); }, function(){ prompt("Sao chép đường link:", text); }); }
+    else prompt("Sao chép đường link:", text);
+  }
+  document.getElementById("shareBtn").addEventListener("click", function(){
+    var url = location.origin + location.pathname;
+    if (navigator.share){ navigator.share({ title: "Thiệp mời khai trương Arcotek", text: CONFIG.details, url: url }).catch(function(){}); }
+    else copy(url, "Đã sao chép đường link thiệp");
+  });
+
+  // Link generator: open the page with ?taolink to create personalised links
+  if (params.has("taolink")){
+    env.classList.add("opened"); document.body.classList.add("show");
+    var wrap = document.getElementById("genWrap");
+    wrap.innerHTML = '<section class="gen"><h2>Tạo link thiệp theo tên khách</h2>'
+      + '<label for="genName">Tên khách mời (VD: Anh Nguyễn Văn A)</label>'
+      + '<input id="genName" type="text" autocomplete="off">'
+      + '<output id="genOut" for="genName"></output>'
+      + '<button class="btn primary" id="genCopy" type="button">Sao chép link</button></section>';
+    var input = document.getElementById("genName"), out = document.getElementById("genOut");
+    function build(){ var v=input.value.trim(); return location.origin + location.pathname + (v ? "?ten=" + encodeURIComponent(v) : ""); }
+    input.addEventListener("input", function(){ out.textContent = build(); document.getElementById("guest").textContent = input.value.trim() || "Quý khách"; });
+    out.textContent = build();
+    document.getElementById("genCopy").addEventListener("click", function(){ copy(build(), "Đã sao chép link cho " + (input.value.trim() || "Quý khách")); });
+  }
+})();
+</script>
+</body>
+</html>
