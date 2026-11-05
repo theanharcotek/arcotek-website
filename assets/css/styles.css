@@ -352,3 +352,21 @@ h1, h2, h3, h4 { font-family: var(--font-display); color: var(--c-heading); line
   .form-row { grid-template-columns: 1fr; }
   .hotline-fab span.txt { display: none; }
 }
+
+/* ---------- Văn bản thẩm định PCCC (du-an.html) ---------- */
+.td-card { cursor: zoom-in; display: block; }
+.td-card img { object-position: top; background: #fff; }
+.proj-meta p { margin-top: 0.4rem; font-size: var(--fs-sm); color: rgba(231,236,243,0.88); }
+.td-card:focus-visible { outline: 3px solid var(--c-red); outline-offset: 3px; }
+.td-note { margin-top: 1.5rem; font-size: var(--fs-sm); max-width: 70ch; }
+.td-lb { position: fixed; inset: 0; z-index: 300; background: rgba(3,32,64,0.94); display: flex; flex-direction: column; }
+.td-lb[hidden] { display: none; }
+.td-lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.8rem 1.2rem; color: #fff; font-family: var(--font-display); font-weight: 700; }
+.td-lb-nav { display: flex; align-items: center; gap: 0.5rem; }
+.td-lb-nav button { min-width: 44px; min-height: 44px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.35); color: #fff; font-size: 1.1rem; }
+.td-lb-nav button:hover { background: rgba(255,255,255,0.12); }
+.td-lb-nav button:disabled { opacity: 0.35; cursor: default; }
+.td-lb-nav button:focus-visible { outline: 3px solid var(--c-red); outline-offset: 2px; }
+.td-lb-stage { flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 0 1rem 1.5rem; }
+.td-lb-stage img { max-width: min(900px, 100%); height: auto; background: #fff; border-radius: 6px; box-shadow: var(--shadow-card); }
+@media (max-width: 560px) { .td-lb-bar { flex-direction: column; align-items: flex-start; } }
