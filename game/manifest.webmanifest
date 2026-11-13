@@ -1,0 +1,20 @@
+{
+  "name": "Biệt Đội PCCC – Thủ Thành Ngôi Nhà",
+  "short_name": "Biệt Đội PCCC",
+  "description": "Game thủ thành 3D: dùng đúng thiết bị chữa cháy để bảo vệ ngôi nhà. Học kiến thức PCCC qua từng màn.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#bfe8ff",
+  "theme_color": "#ff6b6b",
+  "lang": "vi",
+  "categories": ["games", "education"],
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

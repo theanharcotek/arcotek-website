@@ -1,0 +1,13 @@
+BIỆT ĐỘI PCCC – THỦ THÀNH NGÔI NHÀ
+© 2026 Công ty TNHH Xây dựng Kỹ thuật Arcotek (ARCOTEK). Bảo lưu mọi quyền.
+Địa chỉ: Số 100, đường Đồng Khởi, phường Trảng Dài, thành phố Đồng Nai.
+
+Mã nguồn, hình ảnh, nhân vật, nội dung và tên gọi của trò chơi thuộc quyền của ARCOTEK.
+Không được sao chép, sửa đổi, phân phối lại hoặc sử dụng cho mục đích thương mại
+khi chưa có sự đồng ý bằng văn bản của ARCOTEK.
+
+Trò chơi được phát triển với sự hỗ trợ của trí tuệ nhân tạo (AI).
+
+THÀNH PHẦN CỦA BÊN THỨ BA (xem thư mục licenses/):
+ - three.js — Copyright © 2010-2021 three.js authors — Giấy phép MIT (licenses/three.js-LICENSE.txt)
+ - Font Baloo 2 — Copyright 2019 The Baloo 2 Project Authors — SIL Open Font License 1.1 (licenses/Baloo2-OFL-LICENSE.txt)
