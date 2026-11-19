@@ -377,7 +377,28 @@ async function uploadFile(taskId, f, onProg = () => {}) {
   return { id: j.id, name: j.name, size: j.size, mime: j.mime, url: j.url };
 }
 const fileIcon = m => /^image\//.test(m) ? '🖼️' : /pdf/.test(m) ? '📄' : /sheet|excel|csv/.test(m) ? '📊' : /word|document/.test(m) ? '📝' : /dwg|dxf|acad/.test(m) ? '📐' : '📎';
-const filesHTML = fs => (fs && fs.length) ? `<div class="files">${fs.map(f => `<a class="file" href="${esc(f.url)}" target="_blank" rel="noopener"><span>${fileIcon(f.mime || '')}</span><span class="fn">${esc(f.name)}</span><span class="fs">${fmtSize(f.size || 0)}</span></a>`).join('')}</div>` : '';
+const dlUrl = id => `https://drive.usercontent.google.com/download?id=${encodeURIComponent(id)}&export=download`;
+const DL_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>';
+const fileRow = (f, sub = '') => `<div class="file"><a class="fopen" href="${esc(f.url)}" target="_blank" rel="noopener" title="Xem file"><span>${fileIcon(f.mime || '')}</span><span class="fn">${esc(f.name)}${sub}</span><span class="fs">${fmtSize(f.size || 0)}</span></a>${f.id ? `<a class="fdl" href="${dlUrl(f.id)}" target="_blank" rel="noopener" title="Tải về">${DL_ICON}<span>Tải về</span></a>` : ''}</div>`;
+const filesHTML = fs => (fs && fs.length) ? `<div class="files">${fs.map(f => fileRow(f)).join('')}</div>` : '';
+const BIG_DL = 95 * 1024 * 1024; // Drive hỏi xác nhận quét virus với file > ~100 MB
+function downloadAll(files) {
+  const small = files.filter(f => f.id && (f.size || 0) <= BIG_DL), big = files.filter(f => f.id && (f.size || 0) > BIG_DL);
+  small.forEach((f, i) => setTimeout(() => {
+    const ifr = document.createElement('iframe'); ifr.style.display = 'none'; ifr.src = dlUrl(f.id);
+    document.body.appendChild(ifr); setTimeout(() => ifr.remove(), 120000);
+  }, i * 1500));
+  let msg = small.length ? `Đang tải ${small.length} file… Nếu trình duyệt hỏi "tải nhiều file", hãy bấm Cho phép.` : '';
+  if (big.length) msg += ` ${big.length} file trên 100 MB cần bấm "Tải về" riêng hoặc tải cả thư mục Drive.`;
+  toast(msg.trim());
+}
+async function openFolder(taskId) {
+  const w = window.open('', '_blank');
+  try {
+    const j = await callScript({ action: 'folder', taskId });
+    if (w) w.location = j.url; else location.href = j.url;
+  } catch (err) { if (w) w.close(); toast(err.message || 'Không mở được thư mục.'); }
+}
 function filePicker() {
   if (!UPLOAD_URL) return '';
   return `<div><label class="f">Đính kèm file (ảnh, PDF, bản vẽ, video… tối đa 2 GB/file)</label>
@@ -715,9 +736,12 @@ function vDetail(a) {
       </div>
     </div>
     ${(() => { const all = (t.log || []).flatMap(l => (l.files || []).map(f => ({ ...f, by: l.by, t: l.t, step: l.step }))); return `<div class="card pad" style="margin-top:16px">
-      <div class="sec-h"><h3>Tài liệu đính kèm</h3><span class="hint">${all.length} file</span></div>
-      ${all.length ? `<div class="files">${all.map(f => `<a class="file" href="${esc(f.url)}" target="_blank" rel="noopener"><span>${fileIcon(f.mime || '')}</span><span class="fn">${esc(f.name)}<small>${esc(f.by || '')} · ${fmtT(f.t)}${f.step ? ' · ' + esc(f.step) : ''}</small></span><span class="fs">${fmtSize(f.size || 0)}</span></a>`).join('')}</div>` : `<p class="hint" style="margin:0">Chưa có file nào.${UPLOAD_URL && act && i.cur ? ' Đính kèm file khi bấm "Báo cáo tiến độ".' : ''}</p>`}
+      <div class="sec-h"><h3>Tài liệu đính kèm <span class="hint" style="font-weight:400">· ${all.length} file</span></h3>${all.length ? `<div class="dlbar"><button class="btn sm" id="dlAll" type="button">${DL_ICON} Tải tất cả</button>${UPLOAD_URL ? '<button class="btn ghost sm" id="dlFolder" type="button">Thư mục Drive (.zip)</button>' : ''}</div>` : ''}</div>
+      ${all.length ? `<div class="files">${all.map(f => fileRow(f, `<small>${esc(f.by || '')} · ${fmtT(f.t)}${f.step ? ' · ' + esc(f.step) : ''}</small>`)).join('')}</div>` : `<p class="hint" style="margin:0">Chưa có file nào.${UPLOAD_URL && act && i.cur ? ' Đính kèm file khi bấm "Báo cáo tiến độ".' : ''}</p>`}
     </div>`; })()}`;
+  const allFiles = (t.log || []).flatMap(l => l.files || []);
+  $('#dlAll') && ($('#dlAll').onclick = () => downloadAll(allFiles));
+  $('#dlFolder') && ($('#dlFolder').onclick = () => openFolder(t.id));
   $('#cpCode').onclick = async () => { try { await navigator.clipboard.writeText(t.code); toast('Đã sao chép mã ' + t.code); } catch { toast('Mã: ' + t.code); } };
   if (!act) return;
   $('#aRep') && ($('#aRep').onclick = () => reportDialog(t.id, false));
