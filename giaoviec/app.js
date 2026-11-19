@@ -589,6 +589,7 @@ function vNew(a) {
           <div><label class="f">Hạn hoàn thành</label><input class="in" id="dueOut" readonly><div class="hint">Tự tính theo tổng số ngày các bước.</div></div>
           <div style="align-self:center"><label class="chk"><input type="checkbox" name="workdays" checked> Chỉ tính ngày làm việc (trừ T7, CN)</label></div>
         </div>
+        ${filePicker()}
       </div>
       <div class="card pad">
         <div class="sec-h"><h3>2. Quy trình xử lý</h3><select class="in" id="tplSel" style="max-width:280px"></select></div>
@@ -613,6 +614,7 @@ function vNew(a) {
     ed.redraw();
   };
   $('#saveTpl').onclick = () => saveTemplateDialog(validSteps(rows));
+  const getPicked = wirePicker(f);
   f.onsubmit = async e => {
     e.preventDefault();
     const title = f.title.value.trim(), assigneeUid = f.assignee.value, steps = validSteps(rows);
@@ -628,9 +630,22 @@ function vNew(a) {
       log: [logEntry('create', `Giao việc cho ${uname(assigneeUid)}. Quy trình ${steps.length} bước.`)],
     };
     recompute(t);
-    const id = rid(14); const btn = f.querySelector('[type=submit]'); btn.disabled = true;
-    try { await setDoc(doc(db, 'tasks', id), t); toast(`Đã giao việc · Mã ${t.code}`); go('hs-' + id); notify(id, 'assign'); }
-    catch (err) { toast(errMsg(err)); btn.disabled = false; }
+    const id = rid(14); const btn = f.querySelector('[type=submit]'); const label = btn.textContent; btn.disabled = true;
+    try { await setDoc(doc(db, 'tasks', id), t); }
+    catch (err) { toast(errMsg(err)); btn.disabled = false; return; }
+    const picked = getPicked();
+    if (picked.length) {
+      try {
+        const files = await uploadAll(id, picked, btn);
+        btn.textContent = 'Đang lưu…';
+        await mutateTask(id, x => { x.log = (x.log || []).map(l => l.type === 'create' ? { ...l, files: [...(l.files || []), ...files] } : l); }, ['log', 'updatedAt']);
+      } catch (err) {
+        btn.textContent = label;
+        toast(`Đã giao việc ${t.code} nhưng chưa đính kèm được file: ${err.message || errMsg(err)} – có thể đính kèm lại khi báo cáo.`);
+        go('hs-' + id); notify(id, 'assign'); return;
+      }
+    }
+    toast(`Đã giao việc · Mã ${t.code}`); go('hs-' + id); notify(id, 'assign');
   };
 }
 function saveTemplateDialog(steps) {
