@@ -256,3 +256,13 @@ textarea.in{min-height:84px;resize:vertical}
 .file .fn small{display:block;color:var(--mut);font-size:12px}
 .file .fs{font-size:12px;color:var(--mut);flex:none}
 .files>*{min-width:0}.file .fn small{overflow:hidden;text-overflow:ellipsis}
+
+.file{padding:0;gap:0;overflow:hidden}
+.file .fopen{display:flex;align-items:center;gap:10px;padding:8px 10px;flex:1;min-width:0;text-decoration:none;color:var(--tx)}
+.file:hover{background:#fafbfc;border-color:var(--bd)}
+.file .fopen:hover{background:var(--blue-l)}
+.file .fdl{display:flex;align-items:center;gap:6px;padding:0 14px;align-self:stretch;border-left:1px solid var(--bd);color:var(--blue);text-decoration:none;font-size:13px;font-weight:600;flex:none}
+.file .fdl:hover{background:var(--blue);color:#fff}
+.dlbar{display:flex;gap:8px;flex-wrap:wrap}
+.dlbar .btn svg{flex:none}
+@media (max-width:640px){.file .fdl span{display:none}.file .fdl{padding:0 12px}.sec-h{flex-wrap:wrap}}
