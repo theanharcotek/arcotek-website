@@ -306,7 +306,6 @@ async function mutateTask(id, fn, keys = STAFF_KEYS) {
 const logEntry = (type, text, extra = {}) => ({ id: rid(6), t: Date.now(), byUid: S.me.uid, by: S.me.name, type, text, ...extra });
 
 /* ================= file upload (Google Drive via Apps Script) ================= */
-const MAX_UPLOAD = 30 * 1024 * 1024;
 const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 async function prepFile(f) {
   if (/^image\/(jpeg|png|webp|heic)$/.test(f.type) && f.size > 1.5e6) {
@@ -322,20 +321,66 @@ async function prepFile(f) {
   return { blob: f, name: f.name, type: f.type || 'application/octet-stream' };
 }
 const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(new Error('Không đọc được file.')); r.readAsDataURL(blob); });
-async function uploadFile(taskId, f) {
-  const p = await prepFile(f);
-  if (p.blob.size > MAX_UPLOAD) throw new Error(`"${f.name}" vượt quá 30 MB.`);
+const SMALL_MAX = 20 * 1024 * 1024;          // ≤ 20 MB: gửi 1 lần qua script
+const BIG_MAX = 2 * 1024 * 1024 * 1024;       // tối đa 2 GB/file
+const CHUNK = 8 * 1024 * 1024;                // 8 MB mỗi phần (bội số 256 KB)
+async function callScript(body) {
   const idToken = await auth.currentUser.getIdToken();
-  const res = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ idToken, taskId, name: p.name, mime: p.type, data: await toB64(p.blob) }) });
+  const res = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ ...body, idToken }) });
   let j; try { j = await res.json(); } catch { throw new Error('Máy chủ lưu file không phản hồi.'); }
   if (j.error) throw new Error(j.error);
+  return j;
+}
+function putChunk(url, blob, start, total, onProg) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', url);
+    if (blob) x.setRequestHeader('Content-Range', `bytes ${start}-${start + blob.size - 1}/${total}`);
+    else x.setRequestHeader('Content-Range', `bytes */${total}`);
+    if (blob && onProg) x.upload.onprogress = e => onProg(start + e.loaded);
+    x.onload = () => {
+      if (x.status === 200 || x.status === 201) { try { resolve({ done: true, file: JSON.parse(x.responseText) }); } catch { reject(new Error('Phản hồi Drive không hợp lệ.')); } }
+      else if (x.status === 308) { const r = x.getResponseHeader('Range'); resolve({ done: false, next: r ? +r.split('-')[1] + 1 : 0 }); }
+      else reject(Object.assign(new Error('Drive báo lỗi ' + x.status), { status: x.status }));
+    };
+    x.onerror = () => reject(Object.assign(new Error('Mất kết nối mạng.'), { net: true }));
+    x.send(blob || null);
+  });
+}
+async function bigUpload(taskId, p, onProg) {
+  const { uploadUrl } = await callScript({ action: 'start', taskId, name: p.name, mime: p.type, size: p.blob.size });
+  const total = p.blob.size; let pos = 0, fails = 0, file = null;
+  while (!file) {
+    try {
+      const r = await putChunk(uploadUrl, p.blob.slice(pos, Math.min(pos + CHUNK, total)), pos, total, onProg);
+      if (r.done) file = r.file; else pos = r.next;
+      fails = 0; onProg(pos);
+    } catch (err) {
+      if (err.status && err.status < 500) throw err;
+      if (++fails > 6) throw new Error('Mạng không ổn định, tải file thất bại.');
+      await new Promise(r => setTimeout(r, 1500 * fails));
+      try { const q = await putChunk(uploadUrl, null, 0, total); if (q.done) file = q.file; else pos = q.next; } catch {}
+    }
+  }
+  return await callScript({ action: 'finish', taskId, fileId: file.id });
+}
+async function uploadFile(taskId, f, onProg = () => {}) {
+  const p = await prepFile(f);
+  if (p.blob.size > BIG_MAX) throw new Error(`"${f.name}" vượt quá 2 GB.`);
+  if (p.blob.size > SMALL_MAX) {
+    const j = await bigUpload(taskId, p, b => onProg(b / p.blob.size));
+    return { id: j.id, name: j.name, size: j.size, mime: j.mime, url: j.url };
+  }
+  onProg(0.3);
+  const j = await callScript({ taskId, name: p.name, mime: p.type, data: await toB64(p.blob) });
+  onProg(1);
   return { id: j.id, name: j.name, size: j.size, mime: j.mime, url: j.url };
 }
 const fileIcon = m => /^image\//.test(m) ? '🖼️' : /pdf/.test(m) ? '📄' : /sheet|excel|csv/.test(m) ? '📊' : /word|document/.test(m) ? '📝' : /dwg|dxf|acad/.test(m) ? '📐' : '📎';
 const filesHTML = fs => (fs && fs.length) ? `<div class="files">${fs.map(f => `<a class="file" href="${esc(f.url)}" target="_blank" rel="noopener"><span>${fileIcon(f.mime || '')}</span><span class="fn">${esc(f.name)}</span><span class="fs">${fmtSize(f.size || 0)}</span></a>`).join('')}</div>` : '';
 function filePicker() {
   if (!UPLOAD_URL) return '';
-  return `<div><label class="f">Đính kèm file (ảnh, PDF, bản vẽ… ≤ 30 MB/file)</label>
+  return `<div><label class="f">Đính kèm file (ảnh, PDF, bản vẽ, video… tối đa 2 GB/file)</label>
     <label class="btn ghost sm" style="cursor:pointer"><input type="file" id="mF" multiple hidden> + Chọn file</label>
     <div id="mFL" class="hint"></div></div>`;
 }
@@ -357,10 +402,15 @@ async function notify(taskId, type) {
 }
 async function uploadAll(taskId, list, btn) {
   const out = [];
-  for (let i = 0; i < list.length; i++) {
-    btn.textContent = `Đang tải file ${i + 1}/${list.length}…`;
-    out.push(await uploadFile(taskId, list[i]));
-  }
+  const guard = e => { e.preventDefault(); e.returnValue = ''; };
+  window.addEventListener('beforeunload', guard);
+  try {
+    for (let i = 0; i < list.length; i++) {
+      const pre = list.length > 1 ? `file ${i + 1}/${list.length}: ` : '';
+      btn.textContent = `Đang tải ${pre}0%`;
+      out.push(await uploadFile(taskId, list[i], fr => { btn.textContent = `Đang tải ${pre}${Math.min(100, Math.floor(fr * 100))}%`; }));
+    }
+  } finally { window.removeEventListener('beforeunload', guard); }
   return out;
 }
 
