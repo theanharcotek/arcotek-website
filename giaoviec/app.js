@@ -346,6 +346,15 @@ function wirePicker(b) {
   inp.onchange = () => { [...inp.files].forEach(f => picked.push(f)); inp.value = ''; draw(); };
   return () => picked;
 }
+async function notify(taskId, type) {
+  if (!UPLOAD_URL) return;
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const r = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ action: 'notify', type, idToken, taskId }) });
+    const j = await r.json();
+    if (j.sent) setTimeout(() => toast(`Đã gửi email thông báo cho ${j.sent} người.`), 1500);
+  } catch {}
+}
 async function uploadAll(taskId, list, btn) {
   const out = [];
   for (let i = 0; i < list.length; i++) {
@@ -534,7 +543,7 @@ function vNew(a) {
       <div class="card pad">
         <div class="sec-h"><h3>2. Quy trình xử lý</h3><select class="in" id="tplSel" style="max-width:280px"></select></div>
         <div id="se"></div>
-        <p class="hint">Mỗi bước có thể giao cho một người phụ trách khác; người đó sẽ thấy công việc trong mục "Việc của tôi".</p>
+        <p class="hint">Mỗi bước có thể giao cho một người phụ trách khác; người đó sẽ thấy công việc trong mục "Việc của tôi"${UPLOAD_URL ? ' và nhận email thông báo' : ''}.</p>
         <button type="button" class="btn ghost sm" id="saveTpl">Lưu quy trình này làm mẫu</button>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
@@ -570,7 +579,7 @@ function vNew(a) {
     };
     recompute(t);
     const id = rid(14); const btn = f.querySelector('[type=submit]'); btn.disabled = true;
-    try { await setDoc(doc(db, 'tasks', id), t); toast(`Đã giao việc · Mã ${t.code}`); go('hs-' + id); }
+    try { await setDoc(doc(db, 'tasks', id), t); toast(`Đã giao việc · Mã ${t.code}`); go('hs-' + id); notify(id, 'assign'); }
     catch (err) { toast(errMsg(err)); btn.disabled = false; }
   };
 }
@@ -702,6 +711,7 @@ function reportDialog(id, completing) {
           }
         });
         closeModal(); toast(done ? (finished ? 'Công việc đã hoàn thành!' : 'Đã chuyển sang bước tiếp theo.') : 'Đã gửi báo cáo.');
+        if (done) notify(id, finished ? 'done' : 'next');
       } catch (err) { btn.disabled = false; btn.textContent = label; toast(errMsg(err)); }
     };
   });
@@ -766,6 +776,7 @@ function editDialog(id) {
           t.log = [logEntry('edit', `Cập nhật thông tin / quy trình (${t.steps.length} bước, hạn ${fmtD(t.due)}).`), ...(t.log || [])];
         }, ['title', 'desc', 'assigneeUid', 'assigneeName', 'unit', 'priority', 'start', 'workdays', 'steps', 'due', 'memberUids', 'log', 'completedAt', 'updatedAt']);
         closeModal(); toast('Đã lưu thay đổi.');
+        if (v.assigneeUid && v.assigneeUid !== t0.assigneeUid) notify(id, 'assign');
       } catch (err) { e.target.disabled = false; toast(errMsg(err)); }
     };
   });
