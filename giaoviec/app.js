@@ -1,4 +1,6 @@
-import { firebaseConfig, LOGIN_DOMAIN } from './firebase-config.js';
+import * as CFG from './firebase-config.js';
+const { firebaseConfig, LOGIN_DOMAIN } = CFG;
+const UPLOAD_URL = CFG.UPLOAD_URL || '';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword,
@@ -303,6 +305,56 @@ async function mutateTask(id, fn, keys = STAFF_KEYS) {
 }
 const logEntry = (type, text, extra = {}) => ({ id: rid(6), t: Date.now(), byUid: S.me.uid, by: S.me.name, type, text, ...extra });
 
+/* ================= file upload (Google Drive via Apps Script) ================= */
+const MAX_UPLOAD = 30 * 1024 * 1024;
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+async function prepFile(f) {
+  if (/^image\/(jpeg|png|webp|heic)$/.test(f.type) && f.size > 1.5e6) {
+    try {
+      const bmp = await createImageBitmap(f);
+      const sc = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const b = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+      if (b && b.size < f.size) return { blob: b, name: f.name.replace(/\.\w+$/, '') + '.jpg', type: 'image/jpeg' };
+    } catch {}
+  }
+  return { blob: f, name: f.name, type: f.type || 'application/octet-stream' };
+}
+const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(new Error('Không đọc được file.')); r.readAsDataURL(blob); });
+async function uploadFile(taskId, f) {
+  const p = await prepFile(f);
+  if (p.blob.size > MAX_UPLOAD) throw new Error(`"${f.name}" vượt quá 30 MB.`);
+  const idToken = await auth.currentUser.getIdToken();
+  const res = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ idToken, taskId, name: p.name, mime: p.type, data: await toB64(p.blob) }) });
+  let j; try { j = await res.json(); } catch { throw new Error('Máy chủ lưu file không phản hồi.'); }
+  if (j.error) throw new Error(j.error);
+  return { id: j.id, name: j.name, size: j.size, mime: j.mime, url: j.url };
+}
+const fileIcon = m => /^image\//.test(m) ? '🖼️' : /pdf/.test(m) ? '📄' : /sheet|excel|csv/.test(m) ? '📊' : /word|document/.test(m) ? '📝' : /dwg|dxf|acad/.test(m) ? '📐' : '📎';
+const filesHTML = fs => (fs && fs.length) ? `<div class="files">${fs.map(f => `<a class="file" href="${esc(f.url)}" target="_blank" rel="noopener"><span>${fileIcon(f.mime || '')}</span><span class="fn">${esc(f.name)}</span><span class="fs">${fmtSize(f.size || 0)}</span></a>`).join('')}</div>` : '';
+function filePicker() {
+  if (!UPLOAD_URL) return '';
+  return `<div><label class="f">Đính kèm file (ảnh, PDF, bản vẽ… ≤ 30 MB/file)</label>
+    <label class="btn ghost sm" style="cursor:pointer"><input type="file" id="mF" multiple hidden> + Chọn file</label>
+    <div id="mFL" class="hint"></div></div>`;
+}
+function wirePicker(b) {
+  const inp = b.querySelector('#mF'); if (!inp) return () => [];
+  const picked = [];
+  const draw = () => { b.querySelector('#mFL').innerHTML = picked.map((f, i) => `<div>${fileIcon(f.type)} ${esc(f.name)} (${fmtSize(f.size)}) <a href="#" data-rm="${i}">bỏ</a></div>`).join(''); $$('[data-rm]', b).forEach(a => a.onclick = e => { e.preventDefault(); picked.splice(+a.dataset.rm, 1); draw(); }); };
+  inp.onchange = () => { [...inp.files].forEach(f => picked.push(f)); inp.value = ''; draw(); };
+  return () => picked;
+}
+async function uploadAll(taskId, list, btn) {
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    btn.textContent = `Đang tải file ${i + 1}/${list.length}…`;
+    out.push(await uploadFile(taskId, list[i]));
+  }
+  return out;
+}
+
 /* ================= shared UI bits ================= */
 function stBadge(i) {
   if (i.st === 'done') return `<span class="badge st-done">${i.onTime === false ? 'Hoàn thành (trễ hạn)' : 'Hoàn thành'}</span>`;
@@ -584,9 +636,14 @@ function vDetail(a) {
           <div class="lh"><span class="tag ${esc(l.type)}">${LOGT[l.type] || 'Ghi chú'}</span><b>${esc(l.by || '')}</b><span>${fmtT(l.t)}</span></div>
           ${l.step ? `<div class="hint" style="margin:2px 0 0">Bước: ${esc(l.step)}${l.type === 'report' && l.pct != null ? ` · ${l.pct}%` : ''}</div>` : ''}
           ${l.text ? `<div class="lt">${esc(l.text)}</div>` : ''}
+          ${filesHTML(l.files)}
         </li>`).join('') || '<li class="hint">Chưa có báo cáo.</li>'}</ul>
       </div>
-    </div>`;
+    </div>
+    ${(() => { const all = (t.log || []).flatMap(l => (l.files || []).map(f => ({ ...f, by: l.by, t: l.t, step: l.step }))); return `<div class="card pad" style="margin-top:16px">
+      <div class="sec-h"><h3>Tài liệu đính kèm</h3><span class="hint">${all.length} file</span></div>
+      ${all.length ? `<div class="files">${all.map(f => `<a class="file" href="${esc(f.url)}" target="_blank" rel="noopener"><span>${fileIcon(f.mime || '')}</span><span class="fn">${esc(f.name)}<small>${esc(f.by || '')} · ${fmtT(f.t)}${f.step ? ' · ' + esc(f.step) : ''}</small></span><span class="fs">${fmtSize(f.size || 0)}</span></a>`).join('')}</div>` : `<p class="hint" style="margin:0">Chưa có file nào.${UPLOAD_URL && act && i.cur ? ' Đính kèm file khi bấm "Báo cáo tiến độ".' : ''}</p>`}
+    </div>`; })()}`;
   $('#cpCode').onclick = async () => { try { await navigator.clipboard.writeText(t.code); toast('Đã sao chép mã ' + t.code); } catch { toast('Mã: ' + t.code); } };
   if (!act) return;
   $('#aRep') && ($('#aRep').onclick = () => reportDialog(t.id, false));
@@ -608,33 +665,44 @@ function reportDialog(id, completing) {
       <div><label class="f">Nội dung ${completing ? '(tùy chọn)' : '<span class="req">*</span>'}</label><textarea class="in" id="mTx" placeholder="${completing ? 'Kết quả, ghi chú khi hoàn thành' : 'Đã làm được gì, vướng mắc, kế hoạch tiếp theo…'}"></textarea></div>
       ${completing ? '' : `<div><label class="f">Mức độ hoàn thành bước: <span id="pv">${+cur.pct || 0}%</span></label><input type="range" id="mPct" min="0" max="100" step="5" value="${+cur.pct || 0}" style="width:100%"></div>
       <label class="chk"><input type="checkbox" id="mDone"> Đánh dấu hoàn thành bước này, chuyển bước tiếp theo</label>`}
+      ${filePicker()}
     </div>
     <div class="mact"><button class="btn ghost" data-x>Hủy</button><button class="btn ${completing ? 'green' : ''}" data-ok>${completing ? 'Xác nhận hoàn thành' : 'Gửi báo cáo'}</button></div>`, b => {
     b.querySelector('[data-x]').onclick = closeModal;
     const pr = b.querySelector('#mPct'); if (pr) pr.oninput = () => b.querySelector('#pv').textContent = pr.value + '%';
     b.querySelector('#mTx').focus();
+    const getPicked = wirePicker(b);
     b.querySelector('[data-ok]').onclick = async e => {
       const text = b.querySelector('#mTx').value.trim();
       const done = completing || b.querySelector('#mDone').checked;
-      if (!completing && !text && !done) { toast('Vui lòng nhập nội dung báo cáo.'); return; }
-      e.target.disabled = true;
+      const picked = getPicked();
+      if (!completing && !text && !done && !picked.length) { toast('Vui lòng nhập nội dung báo cáo.'); return; }
+      const btn = e.target, label = btn.textContent; btn.disabled = true;
       try {
+        let files = [];
+        if (picked.length) {
+          try { files = await uploadAll(id, picked, btn); }
+          catch (err) { btn.disabled = false; btn.textContent = label; toast(err.message || 'Tải file thất bại.'); return; }
+          btn.textContent = 'Đang lưu…';
+        }
         let finished = false;
         await mutateTask(id, t => {
           const k = t.steps.findIndex(s => s.status !== 'done'); if (k < 0) return;
           const s = t.steps[k]; const now = Date.now(); t.log = t.log || [];
-          if (!completing && (text || !done)) {
+          const fx = files.length ? { files } : {};
+          const repHere = !completing && (text || !done || files.length);
+          if (repHere) {
             s.pct = done ? 100 : +pr.value;
-            t.log.unshift(logEntry('report', text, { step: s.name, pct: s.pct }));
+            t.log.unshift(logEntry('report', text, { step: s.name, pct: s.pct, ...fx }));
           }
           if (done) {
             s.status = 'done'; s.pct = 100; s.doneAt = now; s.doneBy = S.me.name;
-            t.log.unshift({ ...logEntry('done', completing ? text : '', { step: s.name }), t: now + 1 });
+            t.log.unshift({ ...logEntry('done', completing ? text : '', { step: s.name, ...(repHere ? {} : fx) }), t: now + 1 });
             if (t.steps.every(x => x.status === 'done')) { t.completedAt = now; finished = true; }
           }
         });
         closeModal(); toast(done ? (finished ? 'Công việc đã hoàn thành!' : 'Đã chuyển sang bước tiếp theo.') : 'Đã gửi báo cáo.');
-      } catch (err) { e.target.disabled = false; toast(errMsg(err)); }
+      } catch (err) { btn.disabled = false; btn.textContent = label; toast(errMsg(err)); }
     };
   });
 }
