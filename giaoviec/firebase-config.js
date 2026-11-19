@@ -14,3 +14,7 @@ export const firebaseConfig = {
 // Khi đăng nhập chỉ gõ tên (không có @), hệ thống tự thêm đuôi này.
 // VD: gõ "linh" → đăng nhập bằng linh@arcotek.vn
 export const LOGIN_DOMAIN = "arcotek.vn";
+
+// Địa chỉ Google Apps Script nhận file đính kèm (lưu vào Google Drive).
+// Để trống "" nếu chưa dùng tính năng đính kèm.
+export const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbwXnVgeHQWP_hZhG8yUXe_6CguO7y4A4OYk4m3MFXGRXGn25gvknsSiaWeiFbNeVx-9cA/exec";
