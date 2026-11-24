@@ -108,7 +108,7 @@ if (!configured) {
 }
 
 function stopData() { S.dataUnsubs.forEach(u => { try { u(); } catch {} }); S.dataUnsubs = []; S.dataRole = null; S.loaded = false; }
-function stopAll() { stopData(); if (S.profUnsub) { S.profUnsub(); S.profUnsub = null; } S.me = null; S.users = {}; S.tasks = []; S.templates = []; }
+function stopAll() { stopData(); if (S.profUnsub) { S.profUnsub(); S.profUnsub = null; } S.me = null; S.users = {}; S.tasks = []; S.templates = []; S.f = { st: 'all', q: '', scope: 'mine' }; }
 
 async function onAuth(u) {
   stopAll();
@@ -223,7 +223,7 @@ function buildHeader() {
       <span class="tx"><div class="t1">Hệ thống giao việc</div><div class="t2">Giao nhiệm vụ · Báo cáo tiến độ</div></span></a>
     <div class="who"><button id="whoBtn" type="button"><span class="av">${esc(initials(S.me.name))}</span><span class="nm">${esc(S.me.name)}</span></button></div>`;
   $('#whoBtn').onclick = e => { e.stopPropagation(); toggleMenu(); };
-  const items = [['viec-cua-toi', 'list', 'Công việc'], isMgr() && ['giao-viec', 'new', 'Giao việc mới'], ['tra-cuu', 'lookup', 'Tra cứu'], ['mau-quy-trinh', 'tpl', 'Mẫu quy trình'], isAdmin() && ['tai-khoan', 'users', 'Tài khoản']].filter(Boolean);
+  const items = [['viec-cua-toi', 'list', 'Công việc'], ['don-tu', 'forms', 'Đơn từ <span class="nbadge" id="navBadge" hidden></span>'], isMgr() && ['giao-viec', 'new', 'Giao việc mới'], ['tra-cuu', 'lookup', 'Tra cứu'], ['mau-quy-trinh', 'tpl', 'Mẫu quy trình'], isAdmin() && ['tai-khoan', 'users', 'Tài khoản']].filter(Boolean);
   $('#nav').innerHTML = items.map(([h, r, l]) => `<a href="#${h}" data-r="${r}">${l}</a>`).join('');
   markNav();
 }
@@ -239,14 +239,21 @@ function toggleMenu(force) {
 }
 document.addEventListener('click', () => toggleMenu(false));
 
-const HASH = { 'giao-viec': 'new', 'tra-cuu': 'lookup', 'mau-quy-trinh': 'tpl', 'tai-khoan': 'users' };
+const HASH = { 'giao-viec': 'new', 'tra-cuu': 'lookup', 'mau-quy-trinh': 'tpl', 'tai-khoan': 'users', 'don-tu': 'forms' };
 function parseHash() {
   const h = (location.hash || '').replace(/^#/, '');
   if (h.startsWith('hs-')) return ['detail', h.slice(3)];
+  if (h.startsWith('don-moi-')) return ['formnew', h.slice(8)];
+  if (h.startsWith('in-')) return ['print', h.slice(3)];
   return [HASH[h] || 'list', ''];
 }
 function go(h) { if (location.hash === '#' + h) route(); else location.hash = h; }
-function markNav() { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === S.route || (S.route === 'detail' && a.dataset.r === 'list'))); }
+function markNav() {
+  const r = ['formnew', 'print'].includes(S.route) || (S.route === 'detail' && isForm(getTask(S.param))) ? 'forms' : S.route === 'detail' ? 'list' : S.route;
+  $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r));
+  updateBadge();
+}
+function updateBadge() { const b = $('#navBadge'); if (!b || !S.me) return; const n = myPending().length; b.textContent = n; b.hidden = !n; }
 function route() {
   if (!S.me) return;
   let [r, p] = parseHash();
@@ -254,11 +261,12 @@ function route() {
   S.route = r; S.param = p; markNav(); render(); window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
-function rerender(force) { if (S.me && (force || ['list', 'detail', 'lookup', 'users'].includes(S.route))) render(); }
+function rerender(force) { if (S.me) { updateBadge(); if (force || ['list', 'detail', 'lookup', 'users', 'forms', 'print'].includes(S.route)) render(); } }
 function render() {
   const a = $('#app'); if (!a) return;
   if (!S.loaded) { a.innerHTML = '<div class="empty">Đang tải dữ liệu…</div>'; return; }
-  ({ list: vList, new: vNew, lookup: vLookup, tpl: vTpl, detail: vDetail, users: vUsers })[S.route](a);
+  ({ list: vList, new: vNew, lookup: vLookup, tpl: vTpl, detail: vDetail, users: vUsers, forms: vForms, formnew: vFormNew, print: vPrint })[S.route](a);
+  markNav();
 }
 
 /* ================= task logic ================= */
@@ -412,11 +420,11 @@ function wirePicker(b) {
   inp.onchange = () => { [...inp.files].forEach(f => picked.push(f)); inp.value = ''; draw(); };
   return () => picked;
 }
-async function notify(taskId, type) {
+async function notify(taskId, type, extra = {}) {
   if (!UPLOAD_URL) return;
   try {
     const idToken = await auth.currentUser.getIdToken();
-    const r = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ action: 'notify', type, idToken, taskId }) });
+    const r = await fetch(UPLOAD_URL, { method: 'POST', body: JSON.stringify({ ...extra, action: 'notify', type, idToken, taskId }) });
     const j = await r.json();
     if (j.sent) setTimeout(() => toast(`Đã gửi email thông báo cho ${j.sent} người.`), 1500);
   } catch {}
@@ -461,7 +469,7 @@ const userOptions = (sel, empty) => (empty ? `<option value="">${empty}</option>
 /* ================= LIST ================= */
 function scoped() {
   const sc = isMgr() ? S.f.scope : 'mine';
-  return S.tasks.filter(t => sc === 'all' ? true : sc === 'given' ? t.assignerUid === S.me.uid : isMine(t));
+  return S.tasks.filter(t => !isForm(t)).filter(t => sc === 'all' ? true : sc === 'given' ? t.assignerUid === S.me.uid : isMine(t));
 }
 function vList(a) {
   const base = scoped().map(t => ({ t, i: info(t) }));
@@ -687,6 +695,7 @@ function saveTemplateDialog(steps) {
 /* ================= DETAIL ================= */
 function vDetail(a) {
   const t = getTask(S.param);
+  if (isForm(t)) return vFormDetail(a, t);
   if (!t) { a.innerHTML = `<div class="crumb"><a href="#viec-cua-toi">← Công việc</a></div><div class="card empty">Không tìm thấy công việc này, hoặc bạn không có quyền xem.</div>`; return; }
   const i = info(t), act = canAct(t), mgr = isMgr();
   const LOGT = { report: 'Báo cáo', done: 'Hoàn thành bước', return: 'Trả lại', create: 'Giao việc', edit: 'Chỉnh sửa' };
@@ -1030,6 +1039,487 @@ function pwDialog() {
       } catch (err) { e.target.disabled = false; toast(errMsg(err)); }
     };
   });
+}
+
+/* ================= ĐƠN TỪ – ĐỀ XUẤT (biểu mẫu + luồng duyệt) ================= */
+const COMPANY = { name: 'CÔNG TY TNHH XÂY DỰNG KỸ THUẬT ARCOTEK', addr: 'Số 100, đường Đồng Khởi, phường Trảng Dài, thành phố Đồng Nai' };
+const PAY = ['Chuyển khoản', 'Tiền mặt'];
+const COLS = {
+  mua: [{ k: 'ten', l: 'Tên hàng hóa / quy cách', t: 'text', w: '38%' }, { k: 'dvt', l: 'ĐVT', t: 'text', w: '9%' }, { k: 'sl', l: 'SL', t: 'num', w: '9%' }, { k: 'gia', l: 'Đơn giá', t: 'money', w: '17%' }, { k: 'tt', l: 'Thành tiền', t: 'calc', w: '17%' }],
+  vattu: [{ k: 'ten', l: 'Tên vật tư', t: 'text', w: '36%' }, { k: 'qc', l: 'Quy cách / mã', t: 'text', w: '26%' }, { k: 'dvt', l: 'ĐVT', t: 'text', w: '12%' }, { k: 'sl', l: 'SL', t: 'num', w: '12%' }],
+  chungtu: [{ k: 'nd', l: 'Nội dung chi', t: 'text', w: '40%' }, { k: 'so', l: 'Số HĐ / chứng từ', t: 'text', w: '18%' }, { k: 'ngay', l: 'Ngày', t: 'date', w: '16%' }, { k: 'tien', l: 'Số tiền', t: 'money', w: '18%' }],
+};
+const FORMS = {
+  mua: {
+    name: 'Đề nghị mua hàng', icon: '🛒', desc: 'Mua vật tư, thiết bị, dụng cụ, văn phòng phẩm. Kèm ảnh báo giá / hóa đơn.',
+    steps: ['Trưởng bộ phận duyệt', 'Giám đốc duyệt', 'Kế toán thanh toán'],
+    fields: [
+      { k: 'congtrinh', l: 'Công trình / mục đích sử dụng', t: 'text', req: 1, ph: 'VD: Nhà xưởng ABC – KCN Amata' },
+      { k: 'ncc', l: 'Nhà cung cấp đề xuất', t: 'text', ph: 'Tên cửa hàng / công ty, SĐT' },
+      { k: 'items', l: 'Danh sách hàng cần mua', t: 'items', cols: 'mua', req: 1, full: 1 },
+      { k: 'canngay', l: 'Cần có trước ngày', t: 'date' },
+      { k: 'thanhtoan', l: 'Hình thức thanh toán', t: 'select', o: ['Chuyển khoản', 'Tiền mặt', 'Công nợ'] },
+      { k: 'lydo', l: 'Lý do / ghi chú', t: 'textarea', full: 1 },
+    ],
+    files: 'Ảnh báo giá / hóa đơn', total: d => sumItems(d.items, 'mua'),
+    sub: d => `${(d.items || []).length} mặt hàng · ${fmtMoney(sumItems(d.items, 'mua'))}`,
+  },
+  nghi: {
+    name: 'Đơn xin nghỉ phép', icon: '🌴', desc: 'Nghỉ phép năm, nghỉ ốm, việc riêng… Tự tính số ngày nghỉ.',
+    steps: ['Trưởng bộ phận duyệt', 'Giám đốc duyệt'],
+    fields: [
+      { k: 'loai', l: 'Loại nghỉ', t: 'select', req: 1, o: ['Nghỉ phép năm', 'Nghỉ ốm', 'Nghỉ việc riêng có lương (cưới, tang…)', 'Nghỉ không lương', 'Khác'] },
+      { k: 'songay', l: 'Số ngày nghỉ (không tính Chủ nhật)', t: 'calc', f: d => leaveDays(d) ? leaveDays(d) + ' ngày' : '—' },
+      { k: 'tu', l: 'Từ ngày', t: 'date', req: 1 }, { k: 'tubuoi', l: 'Bắt đầu từ buổi', t: 'select', o: ['Sáng', 'Chiều'] },
+      { k: 'den', l: 'Đến hết ngày', t: 'date', req: 1 }, { k: 'denbuoi', l: 'Đến hết buổi', t: 'select', o: ['Chiều', 'Sáng'] },
+      { k: 'lydo', l: 'Lý do', t: 'textarea', req: 1, full: 1 },
+      { k: 'bangiao', l: 'Người nhận bàn giao công việc', t: 'user' },
+      { k: 'lienhe', l: 'SĐT liên hệ khi nghỉ', t: 'text', ph: '09xx xxx xxx' },
+    ],
+    files: 'Giấy tờ kèm theo (giấy khám bệnh, thiệp cưới…)',
+    check: d => (d.tu && d.den && d.den < d.tu) ? '"Đến ngày" phải sau "Từ ngày".' : (leaveDays(d) <= 0 ? 'Số ngày nghỉ không hợp lệ.' : ''),
+    sub: d => `${fmtD(d.tu)} → ${fmtD(d.den)} · ${leaveDays(d)} ngày`,
+  },
+  tamung: {
+    name: 'Đề nghị tạm ứng', icon: '💵', desc: 'Tạm ứng tiền mua vật tư, chi phí công trình, công tác…',
+    steps: ['Trưởng bộ phận duyệt', 'Giám đốc duyệt', 'Kế toán chi tiền'],
+    fields: [
+      { k: 'sotien', l: 'Số tiền đề nghị tạm ứng', t: 'money', req: 1 },
+      { k: 'bangchu', l: 'Bằng chữ', t: 'calc', f: d => d.sotien ? docSo(d.sotien) : '—' },
+      { k: 'mucdich', l: 'Mục đích tạm ứng', t: 'textarea', req: 1, full: 1 },
+      { k: 'congtrinh', l: 'Công trình', t: 'text' },
+      { k: 'hanhoan', l: 'Hạn hoàn ứng / quyết toán', t: 'date' },
+      { k: 'hinhthuc', l: 'Hình thức nhận', t: 'select', o: PAY },
+      { k: 'stk', l: 'Số tài khoản nhận (nếu chuyển khoản)', t: 'text', ph: 'Số TK – Ngân hàng – Tên chủ TK' },
+    ],
+    total: d => +d.sotien || 0, sub: d => fmtMoney(d.sotien),
+  },
+  thanhtoan: {
+    name: 'Đề nghị thanh toán / hoàn ứng', icon: '🧾', desc: 'Thanh toán chi phí đã chi, quyết toán tạm ứng. Kèm ảnh hóa đơn, chứng từ.',
+    steps: ['Trưởng bộ phận duyệt', 'Giám đốc duyệt', 'Kế toán thanh toán'],
+    fields: [
+      { k: 'noidung', l: 'Nội dung thanh toán', t: 'text', req: 1, ph: 'VD: Hoàn ứng mua vật tư công trình ABC' },
+      { k: 'congtrinh', l: 'Công trình', t: 'text' },
+      { k: 'items', l: 'Bảng kê chứng từ', t: 'items', cols: 'chungtu', req: 1, full: 1 },
+      { k: 'datamung', l: 'Số tiền đã tạm ứng (nếu có)', t: 'money' },
+      { k: 'chenhlech', l: 'Còn phải thanh toán / (hoàn lại)', t: 'calc', f: d => { const x = sumItems(d.items, 'chungtu') - (+d.datamung || 0); return x >= 0 ? fmtMoney(x) : `(${fmtMoney(-x)}) – nộp lại công ty`; } },
+      { k: 'hinhthuc', l: 'Hình thức nhận', t: 'select', o: PAY },
+      { k: 'stk', l: 'Số tài khoản nhận (nếu chuyển khoản)', t: 'text', ph: 'Số TK – Ngân hàng – Tên chủ TK' },
+    ],
+    files: 'Ảnh hóa đơn, chứng từ', filesReq: 1, total: d => sumItems(d.items, 'chungtu'),
+    sub: d => `${(d.items || []).length} chứng từ · ${fmtMoney(sumItems(d.items, 'chungtu'))}`,
+  },
+  vattu: {
+    name: 'Đề nghị xuất vật tư', icon: '📦', desc: 'Xuất vật tư, thiết bị PCCC từ kho cho công trình.',
+    steps: ['Chỉ huy trưởng / TBP duyệt', 'Thủ kho xuất kho'],
+    fields: [
+      { k: 'congtrinh', l: 'Công trình nhận', t: 'text', req: 1 },
+      { k: 'ngaynhan', l: 'Ngày cần nhận', t: 'date', req: 1 },
+      { k: 'items', l: 'Danh sách vật tư', t: 'items', cols: 'vattu', req: 1, full: 1 },
+      { k: 'nguoinhan', l: 'Người nhận tại công trình', t: 'text' },
+      { k: 'ghichu', l: 'Ghi chú (giao tận nơi, phương tiện…)', t: 'textarea', full: 1 },
+    ],
+    sub: d => `${d.congtrinh || ''} · ${(d.items || []).length} loại vật tư`,
+  },
+  congtac: {
+    name: 'Đề nghị đi công tác', icon: '🚗', desc: 'Đi khảo sát, thi công, nghiệm thu ngoài tỉnh / xa văn phòng.',
+    steps: ['Trưởng bộ phận duyệt', 'Giám đốc duyệt'],
+    fields: [
+      { k: 'diadiem', l: 'Nơi công tác', t: 'text', req: 1 },
+      { k: 'nguoidi', l: 'Người đi cùng', t: 'text', ph: 'Họ tên những người đi cùng' },
+      { k: 'tu', l: 'Từ ngày', t: 'date', req: 1 }, { k: 'den', l: 'Đến ngày', t: 'date', req: 1 },
+      { k: 'mucdich', l: 'Mục đích, nội dung công việc', t: 'textarea', req: 1, full: 1 },
+      { k: 'phuongtien', l: 'Phương tiện', t: 'select', o: ['Xe công ty', 'Xe cá nhân', 'Xe khách / taxi', 'Máy bay', 'Khác'] },
+      { k: 'chiphi', l: 'Dự trù chi phí', t: 'money' },
+    ],
+    check: d => (d.tu && d.den && d.den < d.tu) ? '"Đến ngày" phải sau "Từ ngày".' : '',
+    total: d => +d.chiphi || 0, sub: d => `${d.diadiem || ''} · ${fmtD(d.tu)} → ${fmtD(d.den)}`,
+  },
+};
+const FORM_ORDER = ['mua', 'nghi', 'tamung', 'thanhtoan', 'vattu', 'congtac'];
+const FORM_KEYS = ['steps', 'log', 'completedAt', 'updatedAt', 'rejected', 'cancelled'];
+
+/* ---------- helpers ---------- */
+const fmtMoney = n => (Math.round(+n || 0)).toLocaleString('vi-VN') + ' đ';
+const parseMoney = s => +String(s || '').replace(/[^\d]/g, '') || 0;
+const lineTotal = (r, c) => c === 'mua' ? (+r.sl || 0) * (+r.gia || 0) : c === 'chungtu' ? (+r.tien || 0) : 0;
+const sumItems = (rows, c) => (rows || []).reduce((s, r) => s + lineTotal(r, c), 0);
+function leaveDays(d) {
+  if (!d.tu || !d.den || d.den < d.tu) return 0;
+  let n = 0; for (let x = d.tu; x <= d.den; x = addDays(x, 1)) if (parseD(x).getDay() !== 0) n += 2;
+  if (parseD(d.tu).getDay() !== 0 && d.tubuoi === 'Chiều') n -= 1;
+  if (parseD(d.den).getDay() !== 0 && d.denbuoi === 'Sáng') n -= 1;
+  return Math.max(0, n) / 2;
+}
+function docSo(num) {
+  num = Math.round(+num || 0); if (!num) return 'Không đồng';
+  const ch = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  const doc3 = (x, full) => {
+    const t = Math.floor(x / 100), c = Math.floor(x % 100 / 10), d = x % 10, s = [];
+    if (full || t) s.push(ch[t] + ' trăm');
+    if (c > 1) { s.push(ch[c] + ' mươi'); if (d === 1) s.push('mốt'); else if (d === 4) s.push('tư'); else if (d === 5) s.push('lăm'); else if (d) s.push(ch[d]); }
+    else if (c === 1) { s.push('mười'); if (d === 5) s.push('lăm'); else if (d) s.push(ch[d]); }
+    else if (d) { if (full || t) s.push('lẻ'); s.push(ch[d]); }
+    return s.join(' ');
+  };
+  const g = []; for (let x = num; x > 0; x = Math.floor(x / 1000)) g.push(x % 1000);
+  const unit = i => i === 0 ? '' : i % 3 === 1 ? ' nghìn' : i % 3 === 2 ? ' triệu' : ' tỷ';
+  const parts = [];
+  for (let i = g.length - 1; i >= 0; i--) { if (!g[i]) { if (i % 3 === 0 && i > 0 && parts.length) parts.push('tỷ'); continue; } parts.push(doc3(g[i], i < g.length - 1) + unit(i)); }
+  const s = parts.join(' ').replace(/\s+/g, ' ').replace(/(tỷ )+tỷ/g, 'tỷ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1) + ' đồng';
+}
+const isForm = t => t && t.kind === 'form';
+function fstat(t) {
+  const i = info(t);
+  if (t.cancelled) return { k: 'cancel', l: 'Đã hủy', c: 'st-pend', i };
+  if (t.rejected) return { k: 'reject', l: 'Bị từ chối', c: 'st-late', i };
+  if (i.st === 'done') return { k: 'ok', l: 'Đã duyệt', c: 'st-done', i };
+  return { k: 'wait', l: `Chờ duyệt ${i.curIdx + 1}/${i.total}`, c: 'st-soon', i };
+}
+const fClosed = t => !!(t.cancelled || t.rejected || info(t).st === 'done');
+const myPending = () => S.tasks.filter(t => isForm(t) && !fClosed(t) && (info(t).cur || {}).ownerUid === S.me.uid);
+function fieldText(f, d) {
+  const v = d[f.k];
+  if (f.t === 'calc') return f.f(d);
+  if (f.t === 'money') return v ? fmtMoney(v) : '';
+  if (f.t === 'date') return v ? fmtD(v) : '';
+  if (f.t === 'user') return v ? uname(v) : '';
+  return v == null ? '' : String(v);
+}
+function itemsText(rows, c) {
+  const cols = COLS[c];
+  return (rows || []).map((r, i) => `${i + 1}. ` + cols.filter(x => x.t !== 'calc').map(x => x.t === 'money' ? fmtMoney(r[x.k]) : x.t === 'date' ? fmtD(r[x.k]) : (r[x.k] || '')).filter(Boolean).join(' · ') + (c === 'mua' ? ` = ${fmtMoney(lineTotal(r, c))}` : '')).join('\n') +
+    (c !== 'vattu' && rows && rows.length ? `\nTổng cộng: ${fmtMoney(sumItems(rows, c))}` : '');
+}
+function formSummary(type, d) {
+  const F = FORMS[type];
+  return F.fields.map(f => ({ k: f.l, v: f.t === 'items' ? itemsText(d[f.k], f.cols) : fieldText(f, d) })).filter(x => x.v && x.v !== '—');
+}
+
+/* ---------- ITEMS TABLE ---------- */
+function itemsEditor(box, rows, c, onChange) {
+  const cols = COLS[c];
+  if (!rows.length) rows.push({});
+  function cell(col, r, i) {
+    if (col.t === 'calc') return `<td class="num tcalc" data-l="${col.l}" data-calc="${i}">${fmtMoney(lineTotal(r, c))}</td>`;
+    const val = col.t === 'money' ? (r[col.k] ? (+r[col.k]).toLocaleString('vi-VN') : '') : esc(r[col.k] || '');
+    const type = col.t === 'date' ? 'date' : 'text', im = col.t === 'num' || col.t === 'money' ? 'decimal' : 'text';
+    return `<td data-l="${col.l}" class="c-${col.k}"><input class="in ${col.t === 'money' || col.t === 'num' ? 'num' : ''}" data-i="${i}" data-c="${col.k}" data-t="${col.t}" type="${type}" inputmode="${im}" value="${val}" placeholder="${col.t === 'text' ? esc(col.l) : ''}"></td>`;
+  }
+  function draw() {
+    const hasTotal = c !== 'vattu';
+    box.innerHTML = `<div class="itbl-wrap"><table class="itbl edit it-${c}"><thead><tr><th style="width:4%">#</th>${cols.map(col => `<th style="width:${col.w}">${col.l}</th>`).join('')}<th style="width:5%"></th></tr></thead>
+      <tbody>${rows.map((r, i) => `<tr><td class="no">${i + 1}</td>${cols.map(col => cell(col, r, i)).join('')}<td class="tdel"><button type="button" class="ib del" data-del="${i}" title="Xóa dòng">${ICON.x}</button></td></tr>`).join('')}</tbody>
+      ${hasTotal ? `<tfoot><tr><td colspan="${cols.length}" class="num"><b>Tổng cộng</b></td><td colspan="2" class="num"><b id="itTotal">${fmtMoney(sumItems(rows, c))}</b></td></tr></tfoot>` : ''}</table></div>
+      <button type="button" class="btn ghost sm" data-add style="margin-top:8px">+ Thêm dòng</button>`;
+    $$('input', box).forEach(inp => inp.oninput = () => {
+      const r = rows[+inp.dataset.i], t = inp.dataset.t;
+      if (t === 'money') { const n = parseMoney(inp.value); r[inp.dataset.c] = n; inp.value = n ? n.toLocaleString('vi-VN') : ''; }
+      else if (t === 'num') { r[inp.dataset.c] = inp.value.replace(',', '.'); }
+      else r[inp.dataset.c] = inp.value;
+      const cc = box.querySelector(`[data-calc="${inp.dataset.i}"]`); if (cc) cc.textContent = fmtMoney(lineTotal(r, c));
+      const tt = box.querySelector('#itTotal'); if (tt) tt.textContent = fmtMoney(sumItems(rows, c));
+      onChange && onChange();
+    });
+    $$('[data-del]', box).forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); if (!rows.length) rows.push({}); draw(); onChange && onChange(); });
+    box.querySelector('[data-add]').onclick = () => { rows.push({}); draw(); const l = $$('tbody tr', box).pop(); l && l.querySelector('input').focus(); };
+  }
+  draw();
+}
+
+/* ---------- LIST ---------- */
+function vForms(a) {
+  const pend = myPending();
+  if (!S.f.fscope) S.f.fscope = pend.length ? 'pending' : 'mine';
+  const tabs = [['pending', `Chờ tôi duyệt${pend.length ? ` (${pend.length})` : ''}`], ['mine', 'Đơn của tôi'], ...(isMgr() ? [['all', 'Tất cả']] : [])];
+  a.innerHTML = `
+    <h2 class="pg">Đơn từ – Đề xuất</h2>
+    <p class="sub">Chọn loại đơn, điền vào các ô có sẵn rồi gửi. Đơn được chuyển lần lượt tới người duyệt từng bước.</p>
+    <div class="fgrid">${FORM_ORDER.map(k => `<a class="card fcard" href="#don-moi-${k}"><span class="fic">${FORMS[k].icon}</span><b>${FORMS[k].name}</b><span>${FORMS[k].desc}</span></a>`).join('')}</div>
+    <div class="scope" style="margin-top:22px">${tabs.map(([k, l]) => `<button data-fs="${k}" class="${S.f.fscope === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="toolbar"><input class="in" id="fq" type="search" placeholder="Tìm theo mã đơn, người đề nghị, nội dung…" value="${esc(S.f.fq || '')}">
+      <select class="in" id="ft"><option value="">Tất cả loại đơn</option>${FORM_ORDER.map(k => `<option value="${k}" ${S.f.ftype === k ? 'selected' : ''}>${FORMS[k].name}</option>`).join('')}</select></div>
+    <div class="items" id="fitems"></div>`;
+  $$('[data-fs]', a).forEach(b => b.onclick = () => { S.f.fscope = b.dataset.fs; vForms(a); });
+  $('#fq').oninput = e => { S.f.fq = e.target.value; drawForms(); };
+  $('#ft').onchange = e => { S.f.ftype = e.target.value; drawForms(); };
+  drawForms();
+}
+function drawForms() {
+  const box = $('#fitems'); if (!box) return;
+  const q = (S.f.fq || '').trim().toLowerCase(), sc = S.f.fscope;
+  const rows = S.tasks.filter(isForm)
+    .filter(t => sc === 'all' ? true : sc === 'pending' ? myPending().includes(t) : t.assigneeUid === S.me.uid)
+    .filter(t => !S.f.ftype || t.formType === S.f.ftype)
+    .filter(t => !q || [t.code, t.title, uname(t.assigneeUid, t.assigneeName), ...(t.form?.summary || []).map(x => x.v)].join(' ').toLowerCase().includes(q))
+    .sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0));
+  if (!rows.length) { box.innerHTML = `<div class="card empty">${sc === 'pending' ? 'Không có đơn nào đang chờ bạn duyệt.' : 'Chưa có đơn nào.'}</div>`; return; }
+  box.innerHTML = rows.map(t => {
+    const s = fstat(t), F = FORMS[t.formType] || {}, cur = s.i.cur;
+    return `<a class="card task" href="#hs-${esc(t.id)}">
+      <div class="row1"><span class="code">${esc(t.code)}</span><span class="badge ${s.c}">${s.l}</span>${prioBadge(t.priority)}</div>
+      <div class="ttl">${F.icon || ''} ${esc(F.name || t.title)}</div>
+      <div class="meta"><span>Người đề nghị: <b>${esc(uname(t.assigneeUid, t.assigneeName))}</b></span><span>Gửi: <b>${fmtT(t.createdAt)}</b></span>
+        ${F.sub ? `<span>${esc(F.sub(t.form?.data || {}))}</span>` : ''}
+        ${s.k === 'wait' && cur ? `<span>Đang chờ: <b>${esc(uname(cur.ownerUid, cur.ownerName))}</b> (${esc(cur.name)})</span>` : ''}</div>
+      <div class="dots">${(t.steps || []).map((st, k) => `<span class="${st.status === 'done' ? 'd' : k === s.i.curIdx && s.k === 'wait' ? 'c' : s.k === 'reject' && k === s.i.curIdx ? 'c l' : ''}"></span>`).join('')}</div>
+    </a>`;
+  }).join('');
+}
+
+/* ---------- NEW FORM ---------- */
+function vFormNew(a) {
+  const type = S.param, F = FORMS[type];
+  if (!F) { go('don-tu'); return; }
+  const data = { items: [] };
+  let saved = []; try { saved = JSON.parse(localStorage.getItem('gv_appr_' + type) || '[]'); } catch {}
+  const others = activeUsers().filter(u => u.uid !== S.me.uid);
+  const fieldHTML = f => {
+    const req = f.req ? ' <span class="req">*</span>' : '';
+    const lab = `<label class="f">${f.l}${req}</label>`;
+    let inp = '';
+    if (f.t === 'text') inp = `<input class="in" data-k="${f.k}" placeholder="${esc(f.ph || '')}">`;
+    else if (f.t === 'textarea') inp = `<textarea class="in" data-k="${f.k}" placeholder="${esc(f.ph || '')}"></textarea>`;
+    else if (f.t === 'date') inp = `<input class="in" type="date" data-k="${f.k}">`;
+    else if (f.t === 'money') inp = `<div class="money"><input class="in num" data-k="${f.k}" data-t="money" inputmode="numeric" placeholder="0"><span>đ</span></div>`;
+    else if (f.t === 'select') inp = `<select class="in" data-k="${f.k}">${f.req ? '<option value="">— Chọn —</option>' : ''}${f.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
+    else if (f.t === 'user') inp = `<select class="in" data-k="${f.k}">${userOptions('', '— Chọn người —')}</select>`;
+    else if (f.t === 'calc') inp = `<div class="calcv" data-calc-k="${f.k}">—</div>`;
+    else if (f.t === 'items') inp = `<div data-items="${f.k}"></div>`;
+    return `<div class="${f.full ? 'ffull' : ''}">${lab}${inp}</div>`;
+  };
+  a.innerHTML = `
+    <div class="crumb"><a href="#don-tu">← Đơn từ</a> / Tạo đơn mới</div>
+    <h2 class="pg">${F.icon} ${F.name}</h2><p class="sub">${F.desc}</p>
+    <form id="fForm" class="grid" novalidate>
+      <div class="card pad">
+        <div class="ginfo"><div><span>Người đề nghị</span><b>${esc(S.me.name)}</b></div><div><span>Bộ phận</span><b>${esc(S.me.unit || '—')}</b></div><div><span>Ngày lập</span><b>${fmtD(ymd())}</b></div>
+          <div><span>Mức độ</span><select class="in" id="fPrio"><option value="normal">Bình thường</option><option value="urgent">Gấp</option><option value="hot">Hỏa tốc</option></select></div></div>
+        <div class="fgrid2">${F.fields.map(fieldHTML).join('')}</div>
+        ${UPLOAD_URL ? `<div style="margin-top:14px"><label class="f">${F.files || 'Đính kèm file'}${F.filesReq ? ' <span class="req">*</span>' : ''}</label>
+          <label class="btn ghost sm" style="cursor:pointer"><input type="file" id="mF" multiple hidden accept="${F.filesReq || F.files?.includes('Ảnh') ? 'image/*,application/pdf,.doc,.docx,.xls,.xlsx' : ''}"> 📷 Chụp / chọn file</label>
+          <div id="mFL" class="hint"></div></div>` : ''}
+      </div>
+      <div class="card pad">
+        <div class="sec-h"><h3>Người duyệt</h3><span class="hint">Đơn đi lần lượt từ trên xuống. Để trống bước nào thì bỏ qua bước đó.</span></div>
+        <div class="appr">${F.steps.map((n, i) => `<div class="apr"><span class="no">${i + 1}</span><span class="an">${esc(n)}</span>
+          <select class="in" data-appr="${i}"><option value="">— Bỏ qua bước này —</option>${others.map(u => `<option value="${esc(u.uid)}" ${saved[i] === u.uid ? 'selected' : ''}>${esc(u.name)}${u.unit ? ' – ' + esc(u.unit) : ''} (${ROLE[u.role] || ''})</option>`).join('')}</select></div>`).join('')}</div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><a class="btn ghost" href="#don-tu">Hủy</a><button class="btn" type="submit">Gửi đơn</button></div>
+    </form>`;
+  const f = $('#fForm');
+  const read = () => {
+    $$('[data-k]', f).forEach(el => { data[el.dataset.k] = el.dataset.t === 'money' ? parseMoney(el.value) : el.value.trim(); });
+    $$('[data-calc-k]', f).forEach(el => { const fd = F.fields.find(x => x.k === el.dataset.calcK); el.textContent = fd.f(data); });
+  };
+  $$('[data-k]', f).forEach(el => {
+    el.addEventListener('input', () => { if (el.dataset.t === 'money') { const n = parseMoney(el.value); el.value = n ? n.toLocaleString('vi-VN') : ''; } read(); });
+    el.addEventListener('change', read);
+  });
+  $$('[data-items]', f).forEach(box => { const fd = F.fields.find(x => x.k === box.dataset.items); data[fd.k] = []; itemsEditor(box, data[fd.k], fd.cols, read); });
+  const getPicked = wirePicker(f);
+  read();
+  f.onsubmit = async e => {
+    e.preventDefault(); read();
+    for (const fd of F.fields) {
+      if (!fd.req) continue;
+      if (fd.t === 'items') { data[fd.k] = (data[fd.k] || []).filter(r => Object.values(r).some(v => String(v).trim())); if (!data[fd.k].length) { toast(`Vui lòng nhập "${fd.l}".`); return; } }
+      else if (!data[fd.k]) { toast(`Vui lòng nhập "${fd.l}".`); const el = f.querySelector(`[data-k="${fd.k}"]`); el && el.focus(); return; }
+    }
+    for (const fd of F.fields) if (fd.t === 'items') data[fd.k] = (data[fd.k] || []).filter(r => Object.values(r).some(v => String(v).trim()));
+    const msg = F.check && F.check(data); if (msg) { toast(msg); return; }
+    const picked = getPicked();
+    if (F.filesReq && UPLOAD_URL && !picked.length) { toast(`Vui lòng đính kèm ${F.files.toLowerCase()}.`); return; }
+    const appr = $$('[data-appr]', f).map(s => s.value);
+    if (!appr.some(Boolean)) { toast('Chọn ít nhất 1 người duyệt.'); return; }
+    try { localStorage.setItem('gv_appr_' + type, JSON.stringify(appr)); } catch {}
+    const steps = F.steps.map((n, i) => ({ n, u: appr[i] })).filter(x => x.u);
+    const t = {
+      kind: 'form', formType: type, code: 'DT' + newCode().slice(2), title: `${F.name} – ${S.me.name}`, desc: '',
+      assignerUid: S.me.uid, assignerName: S.me.name, assigneeUid: S.me.uid, assigneeName: S.me.name, unit: S.me.unit || '',
+      priority: $('#fPrio').value, start: ymd(), workdays: true, createdAt: Date.now(), updatedAt: Date.now(),
+      form: { type, data: clone(data), summary: formSummary(type, data), total: F.total ? F.total(data) : 0 },
+      steps: packSteps(steps.map(x => ({ name: x.n, ownerUid: x.u, days: 1, status: 'pending', pct: 0 }))),
+      log: [logEntry('create', `Gửi ${F.name.toLowerCase()}.`)],
+    };
+    recompute(t);
+    const id = rid(14), btn = f.querySelector('[type=submit]'), label = btn.textContent; btn.disabled = true;
+    try { await setDoc(doc(db, 'tasks', id), t); }
+    catch (err) { toast(errMsg(err)); btn.disabled = false; return; }
+    if (picked.length) {
+      try {
+        const files = await uploadAll(id, picked, btn);
+        btn.textContent = 'Đang lưu…';
+        await mutateTask(id, x => { x.log = (x.log || []).map(l => l.type === 'create' ? { ...l, files } : l); }, ['log', 'updatedAt']);
+      } catch (err) { btn.textContent = label; toast(`Đã gửi đơn nhưng chưa đính kèm được file: ${err.message || errMsg(err)} – có thể bổ sung sau.`); }
+    }
+    toast(`Đã gửi đơn · Mã ${t.code}`); go('hs-' + id); notify(id, 'next');
+  };
+}
+
+/* ---------- DETAIL ---------- */
+function formContentHTML(t) {
+  const F = FORMS[t.formType] || { fields: [] }, d = (t.form && t.form.data) || {};
+  const rowsHTML = F.fields.map(f => {
+    if (f.t === 'items') {
+      const cols = COLS[f.cols], rows = d[f.k] || [];
+      return `<tr><td colspan="2" class="fit"><div class="fk">${f.l}</div><div class="itbl-wrap"><table class="itbl view"><thead><tr><th>#</th>${cols.map(c => `<th>${c.l}</th>`).join('')}</tr></thead><tbody>
+        ${rows.map((r, i) => `<tr><td class="no">${i + 1}</td>${cols.map(c => `<td class="${['money', 'calc', 'num'].includes(c.t) ? 'num' : ''}">${c.t === 'calc' ? fmtMoney(lineTotal(r, f.cols)) : c.t === 'money' ? fmtMoney(r[c.k]) : c.t === 'date' ? fmtD(r[c.k]) : esc(r[c.k] || '')}</td>`).join('')}</tr>`).join('')}</tbody>
+        ${f.cols !== 'vattu' ? `<tfoot><tr><td colspan="${cols.length}" class="num"><b>Tổng cộng</b></td><td class="num"><b>${fmtMoney(sumItems(rows, f.cols))}</b></td></tr><tr><td colspan="${cols.length + 1}" class="num"><i>Bằng chữ: ${docSo(sumItems(rows, f.cols))}</i></td></tr></tfoot>` : ''}</table></div></td></tr>`;
+    }
+    const v = fieldText(f, d); if (!v || v === '—') return '';
+    return `<tr><td class="fk">${f.l}</td><td class="fv">${esc(v)}</td></tr>`;
+  }).join('');
+  return `<table class="ftbl">${rowsHTML}</table>`;
+}
+function vFormDetail(a, t) {
+  const s = fstat(t), i = s.i, F = FORMS[t.formType] || { name: t.title, icon: '' };
+  const me = S.me.uid, closed = fClosed(t), cur = i.cur;
+  const canApprove = !closed && cur && (cur.ownerUid === me || isAdmin());
+  const isReq = t.assigneeUid === me;
+  const files = (t.log || []).flatMap(l => (l.files || []).map(f => ({ ...f, by: l.by, t: l.t })));
+  const LOGT = { create: 'Gửi đơn', approve: 'Đã duyệt', done: 'Đã duyệt', reject: 'Từ chối', comment: 'Trao đổi', report: 'Trao đổi', cancel: 'Hủy đơn', return: 'Trả lại', edit: 'Chỉnh sửa' };
+  a.innerHTML = `
+    <div class="crumb"><a href="#don-tu">← Đơn từ</a> / Chi tiết đơn</div>
+    <div class="card dhead">
+      <div class="row1"><span class="code">${esc(t.code)}</span><span class="badge ${s.c}">${s.l}</span>${prioBadge(t.priority)}</div>
+      <h1>${F.icon} ${esc(F.name)}</h1>
+      <div class="info">
+        <div><div class="k">Người đề nghị</div><div class="v">${esc(uname(t.assigneeUid, t.assigneeName))}</div></div>
+        <div><div class="k">Bộ phận</div><div class="v">${esc(t.unit || '—')}</div></div>
+        <div><div class="k">Ngày gửi</div><div class="v">${fmtT(t.createdAt)}</div></div>
+        <div><div class="k">${s.k === 'wait' ? 'Đang chờ duyệt' : 'Trạng thái'}</div><div class="v">${s.k === 'wait' && cur ? esc(uname(cur.ownerUid, cur.ownerName)) : s.l}</div></div>
+      </div>
+      ${t.rejected ? `<div class="alert bad"><b>Từ chối bởi ${esc(t.rejected.by)}</b> (${fmtT(t.rejected.at)}): ${esc(t.rejected.reason)}</div>` : ''}
+      ${t.cancelled ? `<div class="alert">Đơn đã được ${esc(t.cancelled.by)} hủy lúc ${fmtT(t.cancelled.at)}.</div>` : ''}
+      <div class="actions">
+        ${canApprove ? `<button class="btn green" id="fOk">✓ Duyệt</button><button class="btn dghost" id="fNo">✗ Từ chối</button><button class="btn warn" id="fAsk">Yêu cầu bổ sung</button>` : ''}
+        ${!closed && isReq ? `<button class="btn ghost" id="fAdd">Bổ sung / trao đổi</button><button class="btn dghost" id="fCancel">Hủy đơn</button>` : ''}
+        ${!closed && !isReq && !canApprove ? `<button class="btn ghost" id="fAdd">Trao đổi</button>` : ''}
+        <a class="btn ghost" href="#in-${esc(t.id)}">🖨 In / Lưu PDF</a>
+        ${isMgr() ? '<button class="btn dghost" id="fDel">Xóa</button>' : ''}
+      </div>
+    </div>
+    <div class="cols">
+      <div class="card pad"><div class="sec-h"><h3>Nội dung đơn</h3></div>${formContentHTML(t)}</div>
+      <div>
+        <div class="card pad">
+          <div class="sec-h"><h3>Quy trình duyệt</h3><span class="hint">${i.doneN}/${i.total} bước</span></div>
+          <ol class="tl">${(t.steps || []).map((st, k) => {
+            const isCur = k === i.curIdx && !closed, rej = t.rejected && k === i.curIdx;
+            const cls = st.status === 'done' ? 'done' : rej ? 'cur late' : isCur ? 'cur' : '';
+            const badge = st.status === 'done' ? '<span class="badge st-done">Đã duyệt</span>' : rej ? '<span class="badge st-late">Từ chối</span>' : isCur ? '<span class="badge st-soon">Đang chờ</span>' : '<span class="badge st-pend">Chưa tới</span>';
+            return `<li class="${cls}"><span class="n">${st.status === 'done' ? '✓' : rej ? '✗' : k + 1}</span><div class="b"><div class="h"><b>${esc(st.name)}</b>${badge}</div>
+              <div class="m">${esc(uname(st.ownerUid, st.ownerName))}${st.doneAt ? ' · ' + fmtT(st.doneAt) : ''}</div></div></li>`;
+          }).join('')}</ol>
+        </div>
+        <div class="card pad" style="margin-top:16px">
+          <div class="sec-h"><h3>Lịch sử & trao đổi</h3><span class="hint">${(t.log || []).length} mục</span></div>
+          <ul class="log">${(t.log || []).map(l => `<li>
+            <div class="lh"><span class="tag ${esc(l.type)}">${LOGT[l.type] || 'Ghi chú'}</span><b>${esc(l.by || '')}</b><span>${fmtT(l.t)}</span></div>
+            ${l.step ? `<div class="hint" style="margin:2px 0 0">Bước: ${esc(l.step)}</div>` : ''}
+            ${l.text ? `<div class="lt">${esc(l.text)}</div>` : ''}${filesHTML(l.files)}</li>`).join('')}</ul>
+        </div>
+      </div>
+    </div>
+    <div class="card pad" style="margin-top:16px">
+      <div class="sec-h"><h3>Tài liệu đính kèm <span class="hint" style="font-weight:400">· ${files.length} file</span></h3>${files.length ? `<div class="dlbar"><button class="btn sm" id="dlAll" type="button">${DL_ICON} Tải tất cả</button>${UPLOAD_URL ? '<button class="btn ghost sm" id="dlFolder" type="button">Thư mục Drive (.zip)</button>' : ''}</div>` : ''}</div>
+      ${files.length ? `<div class="files">${files.map(f => fileRow(f, `<small>${esc(f.by || '')} · ${fmtT(f.t)}</small>`)).join('')}</div>` : '<p class="hint" style="margin:0">Chưa có file nào.</p>'}
+    </div>`;
+  $('#dlAll') && ($('#dlAll').onclick = () => downloadAll(files));
+  $('#dlFolder') && ($('#dlFolder').onclick = () => openFolder(t.id));
+  $('#fOk') && ($('#fOk').onclick = () => formActDialog(t.id, 'approve'));
+  $('#fNo') && ($('#fNo').onclick = () => formActDialog(t.id, 'reject'));
+  $('#fAsk') && ($('#fAsk').onclick = () => formActDialog(t.id, 'ask'));
+  $('#fAdd') && ($('#fAdd').onclick = () => formActDialog(t.id, 'comment'));
+  $('#fCancel') && ($('#fCancel').onclick = async () => {
+    if (!await confirmBox('Hủy đơn?', `Đơn ${t.code} sẽ dừng lại và không được duyệt tiếp.`, 'Hủy đơn', true)) return;
+    try { await mutateTask(t.id, x => { x.cancelled = { by: S.me.name, byUid: S.me.uid, at: Date.now() }; x.log = [logEntry('cancel', 'Người đề nghị hủy đơn.'), ...(x.log || [])]; }, FORM_KEYS); toast('Đã hủy đơn.'); }
+    catch (err) { toast(errMsg(err)); }
+  });
+  $('#fDel') && ($('#fDel').onclick = async () => {
+    if (!await confirmBox('Xóa đơn?', `Đơn ${t.code} và lịch sử duyệt sẽ bị xóa vĩnh viễn.`, 'Xóa', true)) return;
+    try { await deleteDoc(doc(db, 'tasks', t.id)); toast('Đã xóa đơn.'); go('don-tu'); } catch (err) { toast(errMsg(err)); }
+  });
+}
+function formActDialog(id, kind) {
+  const t0 = getTask(id); if (!t0) return; const cur = info(t0).cur;
+  const C = {
+    approve: { h: 'Duyệt đơn', p: cur ? `Bước: <b>${esc(cur.name)}</b>` : '', lab: 'Ý kiến (tùy chọn)', req: 0, btn: '✓ Duyệt', cls: 'green' },
+    reject: { h: 'Từ chối đơn', p: 'Đơn sẽ dừng lại và báo cho người đề nghị.', lab: 'Lý do từ chối', req: 1, btn: 'Từ chối', cls: 'danger' },
+    ask: { h: 'Yêu cầu bổ sung', p: 'Đơn vẫn chờ bạn duyệt; người đề nghị sẽ nhận email để bổ sung.', lab: 'Nội dung cần bổ sung', req: 1, btn: 'Gửi yêu cầu', cls: '' },
+    comment: { h: 'Bổ sung / trao đổi', p: 'Người đang duyệt sẽ nhận email.', lab: 'Nội dung', req: 0, btn: 'Gửi', cls: '' },
+  }[kind];
+  openModal(`<h3>${C.h}</h3><p class="hint">${C.p}</p>
+    <div class="grid" style="margin-top:12px"><div><label class="f">${C.lab}${C.req ? ' <span class="req">*</span>' : ''}</label><textarea class="in" id="mTx"></textarea></div>
+    ${kind === 'comment' || kind === 'ask' ? filePicker() : ''}</div>
+    <div class="mact"><button class="btn ghost" data-x>Hủy</button><button class="btn ${C.cls}" data-ok>${C.btn}</button></div>`, b => {
+    b.querySelector('[data-x]').onclick = closeModal; b.querySelector('#mTx').focus();
+    const getPicked = wirePicker(b);
+    b.querySelector('[data-ok]').onclick = async e => {
+      const text = b.querySelector('#mTx').value.trim(), picked = getPicked();
+      if (C.req && !text) { toast(`Vui lòng nhập ${C.lab.toLowerCase()}.`); return; }
+      if (kind === 'comment' && !text && !picked.length) { toast('Nhập nội dung hoặc chọn file.'); return; }
+      const btn = e.target, label = btn.textContent; btn.disabled = true;
+      try {
+        let files = [];
+        if (picked.length) { try { files = await uploadAll(id, picked, btn); } catch (err) { btn.disabled = false; btn.textContent = label; toast(err.message || 'Tải file thất bại.'); return; } }
+        let finished = false;
+        await mutateTask(id, t => {
+          if (t.cancelled || t.rejected) throw new Error('Đơn đã đóng.');
+          const k = t.steps.findIndex(s => s.status !== 'done'), s = t.steps[k], now = Date.now();
+          const fx = files.length ? { files } : {};
+          if (kind === 'approve') {
+            if (!s) throw new Error('Đơn đã duyệt xong.');
+            s.status = 'done'; s.pct = 100; s.doneAt = now; s.doneBy = S.me.name;
+            t.log = [logEntry('approve', text, { step: s.name }), ...(t.log || [])];
+            if (t.steps.every(x => x.status === 'done')) { t.completedAt = now; finished = true; }
+          } else if (kind === 'reject') {
+            t.rejected = { by: S.me.name, byUid: S.me.uid, at: now, reason: text, step: s ? s.name : '' };
+            t.log = [logEntry('reject', text, { step: s ? s.name : '' }), ...(t.log || [])];
+          } else {
+            t.log = [logEntry('comment', (kind === 'ask' ? 'Yêu cầu bổ sung: ' : '') + text, fx), ...(t.log || [])];
+          }
+        }, FORM_KEYS);
+        closeModal();
+        toast(kind === 'approve' ? (finished ? 'Đơn đã được duyệt đầy đủ.' : 'Đã duyệt, chuyển bước tiếp theo.') : kind === 'reject' ? 'Đã từ chối đơn.' : 'Đã gửi.');
+        if (kind === 'approve') notify(id, finished ? 'done' : 'next');
+        else if (kind === 'reject') notify(id, 'reject');
+        else notify(id, 'comment', { to: kind === 'ask' || t0.assigneeUid !== S.me.uid ? 'requester' : 'approver' });
+      } catch (err) { btn.disabled = false; btn.textContent = label; toast(err.message && !err.code ? err.message : errMsg(err)); }
+    };
+  });
+}
+
+/* ---------- PRINT ---------- */
+function vPrint(a) {
+  const t = getTask(S.param);
+  if (!t || !isForm(t)) { a.innerHTML = '<div class="card empty">Không tìm thấy đơn.</div>'; return; }
+  const F = FORMS[t.formType] || { name: t.title }, s = fstat(t), cd = new Date(t.createdAt);
+  const sign = [{ r: 'Người đề nghị', n: uname(t.assigneeUid, t.assigneeName), at: t.createdAt, ok: true }]
+    .concat((t.steps || []).map((st, k) => ({ r: st.name, n: uname(st.ownerUid, st.ownerName), at: st.doneAt, ok: st.status === 'done', rej: t.rejected && k === s.i.curIdx })));
+  a.innerHTML = `
+    <div class="noprint ptool"><a class="btn ghost" href="#hs-${esc(t.id)}">← Quay lại đơn</a><button class="btn" id="pGo">🖨 In / Lưu PDF</button>
+      <span class="hint">Trong hộp thoại in, chọn máy in <b>"Lưu dưới dạng PDF"</b> để xuất file PDF.</span></div>
+    <div class="sheet">
+      <div class="shead"><div><b>${COMPANY.name}</b><br><span>${COMPANY.addr}</span></div>
+        <div class="c"><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><u>Độc lập – Tự do – Hạnh phúc</u></div></div>
+      <div class="sno">Số: ${esc(t.code)}</div>
+      <h1 class="stitle">${esc(F.name.toUpperCase())}</h1>
+      <p class="sto"><i>Kính gửi: Ban Giám đốc Công ty TNHH Xây dựng Kỹ thuật Arcotek</i></p>
+      <table class="ftbl print">
+        <tr><td class="fk">Người đề nghị</td><td class="fv">${esc(uname(t.assigneeUid, t.assigneeName))}</td></tr>
+        <tr><td class="fk">Bộ phận</td><td class="fv">${esc(t.unit || '—')}</td></tr>
+      </table>
+      ${formContentHTML(t)}
+      ${s.k === 'reject' ? `<p class="sres bad">ĐƠN BỊ TỪ CHỐI – ${esc(t.rejected.by)}: ${esc(t.rejected.reason)}</p>` : s.k === 'cancel' ? '<p class="sres bad">ĐƠN ĐÃ HỦY</p>' : s.k === 'ok' ? '<p class="sres ok">ĐÃ DUYỆT</p>' : ''}
+      <p class="sdate"><i>Đồng Nai, ngày ${pad(cd.getDate())} tháng ${pad(cd.getMonth() + 1)} năm ${cd.getFullYear()}</i></p>
+      <div class="signs" style="grid-template-columns:repeat(${Math.min(sign.length, 4)},1fr)">${sign.map(x => `<div><b>${esc(x.r.toUpperCase())}</b>
+        <div class="sig ${x.ok ? 'ok' : x.rej ? 'bad' : ''}">${x.ok ? `✓ ${x === sign[0] ? 'Đã gửi' : 'Đã duyệt'} điện tử<br><small>${fmtT(x.at)}</small>` : x.rej ? '✗ Từ chối' : ''}</div><span>${esc(x.n)}</span></div>`).join('')}</div>
+      <p class="sfoot">Đơn lập trên Hệ thống giao việc ARCOTEK – arcotek.vn/giaoviec · Mã ${esc(t.code)}</p>
+    </div>`;
+  $('#pGo').onclick = () => window.print();
 }
 
 /* ================= modal ================= */
