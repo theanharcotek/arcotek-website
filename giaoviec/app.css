@@ -373,3 +373,41 @@ textarea.in{min-height:84px;resize:vertical}
   .itbl.edit tfoot tr{display:flex;justify-content:space-between;padding:10px 8px}
   .itbl.edit tfoot td{padding:0;background:none}
 }
+
+/* ===== Kho ===== */
+.ktbl{min-width:760px}
+.ktbl tbody tr{cursor:pointer}
+.ktbl tbody tr:hover td{background:var(--blue-l)}
+.ktbl td{padding:9px 8px}
+.ktbl tr.low td{background:#fff8ec}
+.ktbl tr.zero td{background:#fdecec}
+.ktbl tr.zero td:nth-child(5),.ktbl tr.low td:nth-child(5){color:var(--late)}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--blue)}
+.newtag{display:inline-block;margin-top:3px;font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-l);padding:1px 6px;border-radius:4px}
+.kk{background:#fffaf0;border:1px solid #f0dcb4;border-radius:8px;padding:10px 12px;font-size:14px}
+.kkrow{display:grid;grid-template-columns:140px 1fr auto;gap:8px;margin-top:8px}
+.alert.ok{background:var(--green-l);color:#0b5a3e}
+.alert a{font-weight:600}
+@media (max-width:640px){
+  .kkrow{grid-template-columns:1fr}
+  .itbl.edit.it-kho .c-ten{grid-column:1/-1}
+}
+.stats.k4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:860px){.stats.k4{grid-template-columns:1fr 1fr}.stats.k4 .stat:first-child{grid-column:auto}}
+.kpend{margin-bottom:16px;border-color:#bfe3d2;background:#f6fcf9}
+.kprow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #dcefe5}
+.kprow:first-of-type{border-top:0}
+@media (max-width:640px){
+  .ktbl{min-width:0;display:block}
+  .ktbl thead{display:none}
+  .ktbl tbody{display:block}
+  .ktbl tbody tr{display:grid;grid-template-columns:1fr auto;column-gap:10px;padding:10px 12px;border-bottom:1px solid var(--gray-l)}
+  .ktbl td{padding:0!important;border:0!important;background:none!important}
+  .ktbl td:nth-child(2){grid-column:1;grid-row:1;font-size:15px}
+  .ktbl td:nth-child(5){grid-column:2;grid-row:1;font-size:17px;text-align:right}
+  .ktbl td:nth-child(1){grid-column:1;grid-row:2;font-size:12px}
+  .ktbl td:nth-child(3){grid-column:1;grid-row:3;font-size:12.5px;color:var(--mut)}
+  .ktbl td:nth-child(4){grid-column:2;grid-row:2;text-align:right;font-size:12.5px;color:var(--mut)}
+  .ktbl td:nth-child(6),.ktbl td:nth-child(7),.ktbl td:nth-child(8){display:none}
+  .ktbl tr.low,.ktbl tr.zero{border-left:4px solid var(--late)}
+}

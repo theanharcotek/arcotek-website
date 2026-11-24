@@ -9,7 +9,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where,
-  onSnapshot, writeBatch, runTransaction, deleteField,
+  onSnapshot, writeBatch, runTransaction, deleteField, orderBy, limit,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 /* ================= helpers ================= */
@@ -83,7 +83,7 @@ const ICON = {
 
 /* ================= state ================= */
 const S = {
-  me: null, users: {}, tasks: [], templates: [], loaded: false,
+  me: null, users: {}, tasks: [], templates: [], items: {}, moves: [], loaded: false,
   route: 'list', param: '', f: { st: 'all', q: '', scope: 'mine' }, lookupQ: '',
   profUnsub: null, dataUnsubs: [], dataRole: null, settingUp: false,
 };
@@ -108,7 +108,7 @@ if (!configured) {
 }
 
 function stopData() { S.dataUnsubs.forEach(u => { try { u(); } catch {} }); S.dataUnsubs = []; S.dataRole = null; S.loaded = false; }
-function stopAll() { stopData(); if (S.profUnsub) { S.profUnsub(); S.profUnsub = null; } S.me = null; S.users = {}; S.tasks = []; S.templates = []; S.f = { st: 'all', q: '', scope: 'mine' }; }
+function stopAll() { stopData(); if (S.profUnsub) { S.profUnsub(); S.profUnsub = null; } S.me = null; S.users = {}; S.tasks = []; S.templates = []; S.items = {}; S.moves = []; S.f = { st: 'all', q: '', scope: 'mine' }; }
 
 async function onAuth(u) {
   stopAll();
@@ -135,10 +135,10 @@ async function onAuth(u) {
 
 function startData() {
   stopData(); S.dataRole = S.me.role;
-  let got = 0; const need = 3;
+  let got = 0; const need = 5;
   const ready = () => { if (++got >= need && !S.loaded) { S.loaded = true; rerender(true); } };
   const onErr = e => { toast(errMsg(e)); ready(); };
-  let f1 = false, f2 = false, f3 = false;
+  let f1 = false, f2 = false, f3 = false, f4 = false, f5 = false;
   S.dataUnsubs.push(onSnapshot(collection(db, 'users'), snap => {
     S.users = {}; snap.docs.forEach(d => S.users[d.id] = { ...d.data(), uid: d.id });
     if (!f1) { f1 = true; ready(); } else rerender();
@@ -148,9 +148,24 @@ function startData() {
     if (!f2) { f2 = true; ready(); } else if (S.route === 'tpl') render();
     const sel = $('#tplSel'); if (sel) fillTplSelect(sel, sel.value);
   }, onErr));
+  S.dataUnsubs.push(onSnapshot(collection(db, 'items'), snap => {
+    S.items = {}; snap.docs.forEach(d => S.items[d.id] = { ...d.data(), uid: d.id });
+    if (!f4) { f4 = true; ready(); } else rerender();
+  }, onErr));
+  S.dataUnsubs.push(onSnapshot(query(collection(db, 'stock_moves'), orderBy('createdAt', 'desc'), limit(500)), snap => {
+    S.moves = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    if (!f5) { f5 = true; ready(); } else rerender();
+  }, onErr));
+  let own = [], kt = [];
+  const mergeTasks = () => { const m = new Map(); [...kt, ...own].forEach(t => m.set(t.id, t)); S.tasks = [...m.values()]; };
+  if (!isMgr() && S.me.kho) {
+    S.dataUnsubs.push(onSnapshot(query(collection(db, 'tasks'), where('formType', 'in', ['mua', 'vattu'])), snap => {
+      kt = snap.docs.map(d => ({ ...clone(d.data()), id: d.id })); mergeTasks(); rerender();
+    }, () => {}));
+  }
   const q = isMgr() ? collection(db, 'tasks') : query(collection(db, 'tasks'), where('memberUids', 'array-contains', S.me.uid));
   S.dataUnsubs.push(onSnapshot(q, snap => {
-    S.tasks = snap.docs.map(d => ({ ...clone(d.data()), id: d.id }));
+    own = snap.docs.map(d => ({ ...clone(d.data()), id: d.id })); mergeTasks();
     if (!f3) { f3 = true; ready(); } else rerender();
   }, onErr));
 }
@@ -223,7 +238,7 @@ function buildHeader() {
       <span class="tx"><div class="t1">Hệ thống giao việc</div><div class="t2">Giao nhiệm vụ · Báo cáo tiến độ</div></span></a>
     <div class="who"><button id="whoBtn" type="button"><span class="av">${esc(initials(S.me.name))}</span><span class="nm">${esc(S.me.name)}</span></button></div>`;
   $('#whoBtn').onclick = e => { e.stopPropagation(); toggleMenu(); };
-  const items = [['viec-cua-toi', 'list', 'Công việc'], ['don-tu', 'forms', 'Đơn từ <span class="nbadge" id="navBadge" hidden></span>'], isMgr() && ['giao-viec', 'new', 'Giao việc mới'], ['tra-cuu', 'lookup', 'Tra cứu'], ['mau-quy-trinh', 'tpl', 'Mẫu quy trình'], isAdmin() && ['tai-khoan', 'users', 'Tài khoản']].filter(Boolean);
+  const items = [['viec-cua-toi', 'list', 'Công việc'], ['don-tu', 'forms', 'Đơn từ <span class="nbadge" id="navBadge" hidden></span>'], ['kho', 'kho', 'Kho'], isMgr() && ['giao-viec', 'new', 'Giao việc mới'], ['tra-cuu', 'lookup', 'Tra cứu'], ['mau-quy-trinh', 'tpl', 'Mẫu quy trình'], isAdmin() && ['tai-khoan', 'users', 'Tài khoản']].filter(Boolean);
   $('#nav').innerHTML = items.map(([h, r, l]) => `<a href="#${h}" data-r="${r}">${l}</a>`).join('');
   markNav();
 }
@@ -239,17 +254,18 @@ function toggleMenu(force) {
 }
 document.addEventListener('click', () => toggleMenu(false));
 
-const HASH = { 'giao-viec': 'new', 'tra-cuu': 'lookup', 'mau-quy-trinh': 'tpl', 'tai-khoan': 'users', 'don-tu': 'forms' };
+const HASH = { 'giao-viec': 'new', 'tra-cuu': 'lookup', 'mau-quy-trinh': 'tpl', 'tai-khoan': 'users', 'don-tu': 'forms', 'kho': 'kho' };
 function parseHash() {
   const h = (location.hash || '').replace(/^#/, '');
   if (h.startsWith('hs-')) return ['detail', h.slice(3)];
   if (h.startsWith('don-moi-')) return ['formnew', h.slice(8)];
   if (h.startsWith('in-')) return ['print', h.slice(3)];
+  if (h.startsWith('pk-')) return ['movep', h.slice(3)];
   return [HASH[h] || 'list', ''];
 }
 function go(h) { if (location.hash === '#' + h) route(); else location.hash = h; }
 function markNav() {
-  const r = ['formnew', 'print'].includes(S.route) || (S.route === 'detail' && isForm(getTask(S.param))) ? 'forms' : S.route === 'detail' ? 'list' : S.route;
+  const r = S.route === 'movep' ? 'kho' : ['formnew', 'print'].includes(S.route) || (S.route === 'detail' && isForm(getTask(S.param))) ? 'forms' : S.route === 'detail' ? 'list' : S.route;
   $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r));
   updateBadge();
 }
@@ -261,11 +277,11 @@ function route() {
   S.route = r; S.param = p; markNav(); render(); window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
-function rerender(force) { if (S.me) { updateBadge(); if (force || ['list', 'detail', 'lookup', 'users', 'forms', 'print'].includes(S.route)) render(); } }
+function rerender(force) { if (S.me) { updateBadge(); if (force || ['list', 'detail', 'lookup', 'users', 'forms', 'print', 'kho', 'movep'].includes(S.route)) render(); } }
 function render() {
   const a = $('#app'); if (!a) return;
   if (!S.loaded) { a.innerHTML = '<div class="empty">Đang tải dữ liệu…</div>'; return; }
-  ({ list: vList, new: vNew, lookup: vLookup, tpl: vTpl, detail: vDetail, users: vUsers, forms: vForms, formnew: vFormNew, print: vPrint })[S.route](a);
+  ({ list: vList, new: vNew, lookup: vLookup, tpl: vTpl, detail: vDetail, users: vUsers, forms: vForms, formnew: vFormNew, print: vPrint, kho: vKho, movep: vMovePrint })[S.route](a);
   markNav();
 }
 
@@ -958,7 +974,7 @@ function vUsers(a) {
       <div class="card urow ${u.active ? '' : 'off'}">
         <span class="av">${esc(initials(u.name))}</span>
         <div class="ui"><b>${esc(u.name)}</b><span>${esc(u.email)}${u.unit ? ' · ' + esc(u.unit) : ''}</span></div>
-        <span class="badge role-${esc(u.role)}">${ROLE[u.role] || u.role}</span>
+        <span class="badge role-${esc(u.role)}">${ROLE[u.role] || u.role}</span>${u.kho ? '<span class="badge st-done">Thủ kho</span>' : ''}
         ${u.active ? '' : '<span class="badge st-pend">Đã khóa</span>'}
         <button class="btn ghost sm" data-ed="${esc(u.uid)}">Sửa</button>
       </div>`).join('')}</div>`;
@@ -1005,6 +1021,7 @@ function editUserDialog(uid) {
     <div class="grid" style="margin-top:12px">
       <div><label class="f">Họ tên</label><input class="in" id="uN" value="${esc(u.name)}"></div>
       <div class="grid g2"><div><label class="f">Vai trò</label>${self ? `<input class="in" value="${ROLE[u.role]}" disabled>` : roleSelect(u.role)}</div><div><label class="f">Bộ phận</label><input class="in" id="uU" value="${esc(u.unit || '')}"></div></div>
+      <label class="chk"><input type="checkbox" id="uK" ${u.kho ? 'checked' : ''}> Thủ kho (được nhập, xuất kho và kiểm kê)</label>
       ${self ? '' : `<label class="chk"><input type="checkbox" id="uA" ${u.active ? '' : 'checked'}> Khóa tài khoản (không đăng nhập, không xem được dữ liệu)</label>`}
       <div><button class="btn ghost sm" id="uRs" type="button">Gửi email đặt lại mật khẩu</button><div class="hint">Chỉ dùng được khi tài khoản là email thật.</div></div>
     </div>
@@ -1012,7 +1029,7 @@ function editUserDialog(uid) {
     b.querySelector('[data-x]').onclick = closeModal;
     b.querySelector('#uRs').onclick = async () => { try { await sendPasswordResetEmail(auth, u.email); toast('Đã gửi email đặt lại mật khẩu tới ' + u.email); } catch (err) { toast(errMsg(err)); } };
     b.querySelector('[data-ok]').onclick = async e => {
-      const upd = { name: b.querySelector('#uN').value.trim() || u.name, unit: b.querySelector('#uU').value.trim() };
+      const upd = { name: b.querySelector('#uN').value.trim() || u.name, unit: b.querySelector('#uU').value.trim(), kho: b.querySelector('#uK').checked };
       if (!self) { upd.role = b.querySelector('#uR').value; upd.active = !b.querySelector('#uA').checked; }
       e.target.disabled = true;
       try { await updateDoc(doc(db, 'users', uid), upd); closeModal(); toast('Đã lưu.'); } catch (err) { e.target.disabled = false; toast(errMsg(err)); }
@@ -1205,7 +1222,7 @@ function itemsEditor(box, rows, c, onChange) {
     if (col.t === 'calc') return `<td class="num tcalc" data-l="${col.l}" data-calc="${i}">${fmtMoney(lineTotal(r, c))}</td>`;
     const val = col.t === 'money' ? (r[col.k] ? (+r[col.k]).toLocaleString('vi-VN') : '') : esc(r[col.k] || '');
     const type = col.t === 'date' ? 'date' : 'text', im = col.t === 'num' || col.t === 'money' ? 'decimal' : 'text';
-    return `<td data-l="${col.l}" class="c-${col.k}"><input class="in ${col.t === 'money' || col.t === 'num' ? 'num' : ''}" data-i="${i}" data-c="${col.k}" data-t="${col.t}" type="${type}" inputmode="${im}" value="${val}" placeholder="${col.t === 'text' ? esc(col.l) : ''}"></td>`;
+    return `<td data-l="${col.l}" class="c-${col.k}"><input ${c === 'vattu' && col.k === 'ten' ? 'list="dlItems" ' : ''}class="in ${col.t === 'money' || col.t === 'num' ? 'num' : ''}" data-i="${i}" data-c="${col.k}" data-t="${col.t}" type="${type}" inputmode="${im}" value="${val}" placeholder="${col.t === 'text' ? esc(col.l) : ''}"></td>`;
   }
   function draw() {
     const hasTotal = c !== 'vattu';
@@ -1218,6 +1235,10 @@ function itemsEditor(box, rows, c, onChange) {
       if (t === 'money') { const n = parseMoney(inp.value); r[inp.dataset.c] = n; inp.value = n ? n.toLocaleString('vi-VN') : ''; }
       else if (t === 'num') { r[inp.dataset.c] = inp.value.replace(',', '.'); }
       else r[inp.dataset.c] = inp.value;
+      if (c === 'vattu' && inp.dataset.c === 'ten') {
+        const it = findItem(inp.value); r.itemId = it ? it.uid : '';
+        if (it) { const tr = inp.closest('tr'); r.dvt = it.unit || ''; r.qc = r.qc || it.spec || ''; const u = tr.querySelector('[data-c="dvt"]'), q = tr.querySelector('[data-c="qc"]'); if (u) u.value = r.dvt; if (q && !q.value) q.value = r.qc; inp.title = `Tồn kho: ${fmtQ(it.qty)} ${it.unit || ''}`; }
+      }
       const cc = box.querySelector(`[data-calc="${inp.dataset.i}"]`); if (cc) cc.textContent = fmtMoney(lineTotal(r, c));
       const tt = box.querySelector('#itTotal'); if (tt) tt.textContent = fmtMoney(sumItems(rows, c));
       onChange && onChange();
@@ -1290,7 +1311,7 @@ function vFormNew(a) {
     return `<div class="${f.full ? 'ffull' : ''}">${lab}${inp}</div>`;
   };
   a.innerHTML = `
-    <div class="crumb"><a href="#don-tu">← Đơn từ</a> / Tạo đơn mới</div>
+    ${type === 'vattu' ? itemsDatalist() : ''}<div class="crumb"><a href="#don-tu">← Đơn từ</a> / Tạo đơn mới</div>
     <h2 class="pg">${F.icon} ${F.name}</h2><p class="sub">${F.desc}</p>
     <form id="fForm" class="grid" novalidate>
       <div class="card pad">
@@ -1392,11 +1413,13 @@ function vFormDetail(a, t) {
         <div><div class="k">${s.k === 'wait' ? 'Đang chờ duyệt' : 'Trạng thái'}</div><div class="v">${s.k === 'wait' && cur ? esc(uname(cur.ownerUid, cur.ownerName)) : s.l}</div></div>
       </div>
       ${t.rejected ? `<div class="alert bad"><b>Từ chối bởi ${esc(t.rejected.by)}</b> (${fmtT(t.rejected.at)}): ${esc(t.rejected.reason)}</div>` : ''}
+      ${movesOfTask(t.id).map(m => `<div class="alert ok">${m.type === 'in' ? '📥 Đã nhập kho' : '📤 Đã xuất kho'}: <a href="#pk-${esc(m.id)}">${esc(m.code)}</a> · ${fmtD(m.date)} · ${(m.items || []).length} vật tư · ${esc(m.by || '')}</div>`).join('')}
       ${t.cancelled ? `<div class="alert">Đơn đã được ${esc(t.cancelled.by)} hủy lúc ${fmtT(t.cancelled.at)}.</div>` : ''}
       <div class="actions">
-        ${canApprove ? `<button class="btn green" id="fOk">✓ Duyệt</button><button class="btn dghost" id="fNo">✗ Từ chối</button><button class="btn warn" id="fAsk">Yêu cầu bổ sung</button>` : ''}
+        ${canApprove && t.formType === 'vattu' && i.curIdx === t.steps.length - 1 && isKho() ? `<button class="btn green" id="fExp">✓ Duyệt & xuất kho</button><button class="btn dghost" id="fNo">✗ Từ chối</button><button class="btn warn" id="fAsk">Yêu cầu bổ sung</button>` : canApprove ? `<button class="btn green" id="fOk">✓ Duyệt</button><button class="btn dghost" id="fNo">✗ Từ chối</button><button class="btn warn" id="fAsk">Yêu cầu bổ sung</button>` : ''}
         ${!closed && isReq ? `<button class="btn ghost" id="fAdd">Bổ sung / trao đổi</button><button class="btn dghost" id="fCancel">Hủy đơn</button>` : ''}
-        ${!closed && !isReq && !canApprove ? `<button class="btn ghost" id="fAdd">Trao đổi</button>` : ''}
+        ${!closed && !isReq && !canApprove && (isMgr() || (t.memberUids || []).includes(me)) ? `<button class="btn ghost" id="fAdd">Trao đổi</button>` : ''}
+        ${t.formType === 'mua' && s.k === 'ok' && isKho() && !movesOfTask(t.id).some(m => m.type === 'in') ? '<button class="btn green" id="fImp">📥 Nhập kho từ đơn này</button>' : ''}
         <a class="btn ghost" href="#in-${esc(t.id)}">🖨 In / Lưu PDF</a>
         ${isMgr() ? '<button class="btn dghost" id="fDel">Xóa</button>' : ''}
       </div>
@@ -1430,6 +1453,8 @@ function vFormDetail(a, t) {
   $('#dlAll') && ($('#dlAll').onclick = () => downloadAll(files));
   $('#dlFolder') && ($('#dlFolder').onclick = () => openFolder(t.id));
   $('#fOk') && ($('#fOk').onclick = () => formActDialog(t.id, 'approve'));
+  $('#fExp') && ($('#fExp').onclick = () => exportFromForm(t));
+  $('#fImp') && ($('#fImp').onclick = () => importFromForm(t));
   $('#fNo') && ($('#fNo').onclick = () => formActDialog(t.id, 'reject'));
   $('#fAsk') && ($('#fAsk').onclick = () => formActDialog(t.id, 'ask'));
   $('#fAdd') && ($('#fAdd').onclick = () => formActDialog(t.id, 'comment'));
@@ -1520,6 +1545,285 @@ function vPrint(a) {
       <p class="sfoot">Đơn lập trên Hệ thống giao việc ARCOTEK – arcotek.vn/giaoviec · Mã ${esc(t.code)}</p>
     </div>`;
   $('#pGo').onclick = () => window.print();
+}
+
+/* ================= KHO VẬT TƯ ================= */
+const MV = { in: { l: 'Nhập kho', c: 'st-done', p: 'PN', t: 'PHIẾU NHẬP KHO' }, out: { l: 'Xuất kho', c: 'st-doing', p: 'PX', t: 'PHIẾU XUẤT KHO' }, adjust: { l: 'Kiểm kê', c: 'st-soon', p: 'KK', t: 'BIÊN BẢN ĐIỀU CHỈNH TỒN KHO' } };
+const isKho = () => S.me && (S.me.role === 'admin' || S.me.role === 'manager' || S.me.kho === true);
+const fmtQ = n => { n = Math.round((+n || 0) * 1000) / 1000; return n.toLocaleString('vi-VN', { maximumFractionDigits: 3 }); };
+const parseQ = s => { const n = parseFloat(String(s || '').replace(/\s/g, '').replace(',', '.')); return isFinite(n) ? n : 0; };
+const itemList = () => Object.values(S.items).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
+const findItem = name => { const n = (name || '').trim().toLowerCase(); return itemList().find(i => (i.name || '').trim().toLowerCase() === n || (i.code || '').toLowerCase() === n); };
+const itemLabel = i => `${i.name}${i.spec ? ' – ' + i.spec : ''}`;
+const lowStock = i => (+i.min || 0) > 0 && (+i.qty || 0) <= (+i.min || 0);
+const movesOfTask = id => S.moves.filter(m => m.refTask === id);
+const itemsDatalist = () => `<datalist id="dlItems">${itemList().map(i => `<option value="${esc(i.name)}">${esc((i.code || '') + (i.spec ? ' · ' + i.spec : '') + ' · tồn ' + fmtQ(i.qty) + ' ' + (i.unit || ''))}</option>`).join('')}</datalist>`;
+
+/** Ghi phiếu kho và cập nhật tồn trong 1 giao dịch. lines: [{itemId?, name, spec, unit, qty, price}] */
+async function saveMove(m, lines) {
+  // vật tư mới (chưa có trong danh mục) → tạo trước
+  for (const l of lines) {
+    if (l.itemId && S.items[l.itemId]) continue;
+    const ex = findItem(l.name); if (ex) { l.itemId = ex.uid; continue; }
+    if (m.type !== 'in') throw new Error(`"${l.name}" chưa có trong danh mục kho.`);
+    if (!l.unit) throw new Error(`Nhập đơn vị tính cho vật tư mới "${l.name}".`);
+    const id = rid(12);
+    await setDoc(doc(db, 'items', id), { code: 'VT' + rid(4, 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'), name: l.name.trim(), spec: l.spec || '', unit: l.unit, group: '', min: 0, qty: 0, price: 0, createdAt: Date.now(), updatedAt: Date.now() });
+    l.itemId = id;
+  }
+  const id = rid(14), now = Date.now();
+  const move = {
+    ...m, code: MV[m.type].p + newCode().slice(2), createdAt: now, byUid: S.me.uid, by: S.me.name,
+    items: lines.map(l => ({ itemId: l.itemId, name: l.name, spec: l.spec || '', unit: l.unit || '', qty: +l.qty, price: +l.price || 0 })),
+  };
+  move.itemIds = [...new Set(move.items.map(x => x.itemId))];
+  move.total = move.items.reduce((s, x) => s + x.qty * x.price, 0);
+  await runTransaction(db, async tx => {
+    const snaps = {}; for (const iid of move.itemIds) snaps[iid] = await tx.get(doc(db, 'items', iid));
+    const delta = {}; move.items.forEach(x => delta[x.itemId] = (delta[x.itemId] || 0) + (m.type === 'out' ? -x.qty : x.qty));
+    const short = [];
+    for (const iid of move.itemIds) {
+      if (!snaps[iid].exists()) throw new Error('Vật tư không còn trong danh mục.');
+      const cur = +snaps[iid].data().qty || 0, nq = Math.round((cur + delta[iid]) * 1000) / 1000;
+      if (m.type === 'out' && nq < 0) short.push(`${snaps[iid].data().name}: tồn ${fmtQ(cur)}, cần ${fmtQ(-delta[iid])}`);
+    }
+    if (short.length) throw new Error('Không đủ hàng trong kho:\n' + short.join('\n'));
+    tx.set(doc(db, 'stock_moves', id), move);
+    for (const iid of move.itemIds) {
+      const cur = +snaps[iid].data().qty || 0, upd = { qty: Math.round((cur + delta[iid]) * 1000) / 1000, updatedAt: now };
+      if (m.type === 'in') { const p = move.items.filter(x => x.itemId === iid && x.price).pop(); if (p) upd.price = p.price; }
+      tx.update(doc(db, 'items', iid), upd);
+    }
+  });
+  return { id, code: move.code };
+}
+
+/* ---------- PAGE ---------- */
+function vKho(a) {
+  const items = itemList(), low = items.filter(lowStock), val = items.reduce((s, i) => s + (+i.qty || 0) * (+i.price || 0), 0);
+  const month = ymd().slice(0, 7), mCount = S.moves.filter(m => (m.date || '').startsWith(month)).length;
+  S.f.ktab = S.f.ktab || 'ton';
+  a.innerHTML = `
+    <div class="sec-h" style="margin-bottom:4px;flex-wrap:wrap"><h2 class="pg" style="margin:0">Kho vật tư</h2>
+      ${isKho() ? `<div class="dlbar"><button class="btn green" id="kIn">+ Nhập kho</button><button class="btn" id="kOut">− Xuất kho</button><button class="btn ghost" id="kNew">+ Vật tư mới</button></div>` : ''}</div>
+    <p class="sub">Tồn kho tự cập nhật theo phiếu nhập, phiếu xuất và kiểm kê.${isKho() ? '' : ' Bạn chỉ có quyền xem – muốn lấy vật tư hãy gửi <a href="#don-moi-vattu">Đề nghị xuất vật tư</a>.'}</p>
+    <div class="stats k4">
+      <div class="stat" style="--c:#1b2433"><div class="n">${items.length}</div><div class="l">Mã vật tư</div></div>
+      <button class="stat" id="kLow" style="--c:var(--late)"><div class="n">${low.length}</div><div class="l">Sắp hết / hết hàng</div></button>
+      <div class="stat" style="--c:var(--green)"><div class="n" style="font-size:19px">${fmtMoney(val)}</div><div class="l">Giá trị tồn (theo giá nhập gần nhất)</div></div>
+      <div class="stat" style="--c:var(--blue)"><div class="n">${mCount}</div><div class="l">Phiếu trong tháng</div></div>
+    </div>
+    ${isKho() ? (() => { const pend = S.tasks.filter(t => isForm(t) && t.formType === 'mua' && fstat(t).k === 'ok' && !movesOfTask(t.id).some(m => m.type === 'in')); return pend.length ? `<div class="card pad kpend"><div class="sec-h"><h3>📥 Đơn mua đã duyệt – chờ nhập kho (${pend.length})</h3></div>
+      ${pend.map(t => `<div class="kprow"><div><a href="#hs-${esc(t.id)}" class="code">${esc(t.code)}</a> <b>${esc(t.assigneeName)}</b> · ${esc(FORMS.mua.sub(t.form?.data || {}))}<div class="hint" style="margin:0">${esc(t.form?.data?.congtrinh || '')}${t.form?.data?.ncc ? ' · NCC: ' + esc(t.form.data.ncc) : ''}</div></div><button class="btn green sm" data-imp="${esc(t.id)}">Nhập kho</button></div>`).join('')}</div>` : ''; })() : ''}
+    <div class="scope">${[['ton', 'Tồn kho'], ['phieu', 'Phiếu nhập / xuất']].map(([k, l]) => `<button data-kt="${k}" class="${S.f.ktab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div id="kBody"></div>`;
+  $$('[data-kt]', a).forEach(b => b.onclick = () => { S.f.ktab = b.dataset.kt; vKho(a); });
+  $('#kLow').onclick = () => { S.f.ktab = 'ton'; S.f.kfil = 'low'; vKho(a); };
+  $('#kIn') && ($('#kIn').onclick = () => stockDialog('in'));
+  $('#kOut') && ($('#kOut').onclick = () => stockDialog('out'));
+  $('#kNew') && ($('#kNew').onclick = () => itemDialog(null));
+  $$('[data-imp]', a).forEach(b => b.onclick = () => importFromForm(getTask(b.dataset.imp)));
+  S.f.ktab === 'ton' ? drawTon() : drawPhieu();
+}
+function drawTon() {
+  const box = $('#kBody'); if (!box) return;
+  box.innerHTML = `<div class="toolbar"><input class="in" id="kq" type="search" placeholder="Tìm mã, tên, quy cách…" value="${esc(S.f.kq || '')}">
+    <select class="in" id="kf"><option value="">Tất cả vật tư</option><option value="low" ${S.f.kfil === 'low' ? 'selected' : ''}>Sắp hết (≤ tồn tối thiểu)</option><option value="zero" ${S.f.kfil === 'zero' ? 'selected' : ''}>Hết hàng</option></select>
+    <button class="btn ghost" id="kCsv" type="button">⬇ Xuất Excel</button></div><div id="kTbl"></div>`;
+  const draw = () => {
+    const q = (S.f.kq || '').trim().toLowerCase();
+    const rows = itemList().filter(i => !q || [i.code, i.name, i.spec, i.group].join(' ').toLowerCase().includes(q))
+      .filter(i => S.f.kfil === 'low' ? lowStock(i) || (+i.qty || 0) <= 0 : S.f.kfil === 'zero' ? (+i.qty || 0) <= 0 : true);
+    $('#kTbl').innerHTML = rows.length ? `<div class="card"><div class="itbl-wrap" style="border:0"><table class="itbl ktbl"><thead><tr><th>Mã</th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th class="num">Tồn</th><th class="num">Tối thiểu</th><th class="num">Giá nhập</th><th class="num">Giá trị</th></tr></thead><tbody>
+      ${rows.map(i => `<tr data-it="${esc(i.uid)}" class="${(+i.qty || 0) <= 0 ? 'zero' : lowStock(i) ? 'low' : ''}"><td class="mono">${esc(i.code || '')}</td><td><b>${esc(i.name)}</b></td><td>${esc(i.spec || '')}</td><td>${esc(i.unit || '')}</td>
+        <td class="num"><b>${fmtQ(i.qty)}</b></td><td class="num">${i.min ? fmtQ(i.min) : ''}</td><td class="num">${i.price ? fmtMoney(i.price) : ''}</td><td class="num">${i.price ? fmtMoney((+i.qty || 0) * i.price) : ''}</td></tr>`).join('')}</tbody></table></div></div>`
+      : `<div class="card empty">${itemList().length ? 'Không có vật tư phù hợp.' : 'Kho chưa có vật tư nào.' + (isKho() ? ' Bấm <b>+ Nhập kho</b> để nhập lần đầu (vật tư mới được thêm vào danh mục tự động).' : '')}</div>`;
+    $$('[data-it]').forEach(r => r.onclick = () => itemDialog(r.dataset.it));
+  };
+  $('#kq').oninput = e => { S.f.kq = e.target.value; draw(); };
+  $('#kf').onchange = e => { S.f.kfil = e.target.value; draw(); };
+  $('#kCsv').onclick = () => {
+    const head = ['Mã', 'Tên vật tư', 'Quy cách', 'Nhóm', 'ĐVT', 'Tồn', 'Tối thiểu', 'Giá nhập gần nhất', 'Giá trị tồn'];
+    const lines = itemList().map(i => [i.code, i.name, i.spec, i.group, i.unit, i.qty || 0, i.min || 0, i.price || 0, (+i.qty || 0) * (+i.price || 0)]);
+    const csv = '﻿' + [head, ...lines].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const aEl = document.createElement('a'); aEl.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    aEl.download = `ton-kho-ARCOTEK-${ymd()}.csv`; document.body.appendChild(aEl); aEl.click(); setTimeout(() => { URL.revokeObjectURL(aEl.href); aEl.remove(); }, 1000);
+  };
+  draw();
+}
+function drawPhieu() {
+  const box = $('#kBody'); if (!box) return;
+  box.innerHTML = `<div class="toolbar"><input class="in" id="pq" type="search" placeholder="Tìm số phiếu, công trình, nhà cung cấp, vật tư…" value="${esc(S.f.pq || '')}">
+    <select class="in" id="pt"><option value="">Tất cả phiếu</option>${Object.entries(MV).map(([k, v]) => `<option value="${k}" ${S.f.pt === k ? 'selected' : ''}>${v.l}</option>`).join('')}</select></div><div class="items" id="pList"></div>`;
+  const draw = () => {
+    const q = (S.f.pq || '').trim().toLowerCase();
+    const rows = S.moves.filter(m => !S.f.pt || m.type === S.f.pt)
+      .filter(m => !q || [m.code, m.congtrinh, m.ncc, m.nguoinhan, m.note, ...(m.items || []).map(x => x.name)].join(' ').toLowerCase().includes(q));
+    $('#pList').innerHTML = rows.length ? rows.map(m => `<a class="card task" href="#pk-${esc(m.id)}">
+      <div class="row1"><span class="code">${esc(m.code)}</span><span class="badge ${MV[m.type].c}">${MV[m.type].l}</span>${m.refCode ? `<span class="badge st-pend">Từ đơn ${esc(m.refCode)}</span>` : ''}</div>
+      <div class="ttl">${esc(m.congtrinh || m.ncc || m.note || MV[m.type].l)}</div>
+      <div class="meta"><span>Ngày: <b>${fmtD(m.date)}</b></span><span>${(m.items || []).length} dòng: ${esc((m.items || []).slice(0, 3).map(x => x.name).join(', '))}${(m.items || []).length > 3 ? '…' : ''}</span>${m.total ? `<span>Tổng: <b>${fmtMoney(m.total)}</b></span>` : ''}<span>Lập: ${esc(m.by || '')}</span></div></a>`).join('')
+      : '<div class="card empty">Chưa có phiếu nào.</div>';
+  };
+  $('#pq').oninput = e => { S.f.pq = e.target.value; draw(); };
+  $('#pt').onchange = e => { S.f.pt = e.target.value; draw(); };
+  draw();
+}
+
+/* ---------- STOCK DIALOG (nhập / xuất) ---------- */
+function stockDialog(type, pre = {}, onDone) {
+  const IN = type === 'in';
+  const lines = (pre.lines && pre.lines.length ? pre.lines : [{}]).map(l => ({ ...l }));
+  openModal(`<h3>${IN ? '📥 Phiếu nhập kho' : '📤 Phiếu xuất kho'}${pre.refCode ? ` <span class="hint">– từ đơn ${esc(pre.refCode)}</span>` : ''}</h3>
+    <div class="grid" style="margin-top:12px">
+      <div class="grid g3">
+        <div><label class="f">Ngày ${IN ? 'nhập' : 'xuất'}</label><input class="in" type="date" id="sDate" value="${ymd()}"></div>
+        <div><label class="f">${IN ? 'Nhà cung cấp' : 'Công trình nhận'}${IN ? '' : ' <span class="req">*</span>'}</label><input class="in" id="sA" value="${esc(IN ? pre.ncc || '' : pre.congtrinh || '')}"></div>
+        <div><label class="f">${IN ? 'Cho công trình (nếu có)' : 'Người nhận'}</label><input class="in" id="sB" value="${esc(IN ? pre.congtrinh || '' : pre.nguoinhan || '')}"></div>
+      </div>
+      <div><label class="f">Danh sách vật tư <span class="hint" style="font-weight:400">– gõ tên để chọn từ danh mục${IN ? '; tên mới sẽ được thêm vào danh mục' : ''}</span></label><div id="sLines"></div></div>
+      <div><label class="f">Ghi chú</label><input class="in" id="sNote" value="${esc(pre.note || '')}"></div>
+    </div>${itemsDatalist()}
+    <div class="mact"><button class="btn ghost" data-x>Hủy</button><button class="btn ${IN ? 'green' : ''}" data-ok>${IN ? 'Lưu phiếu nhập' : 'Lưu phiếu xuất'}</button></div>`, b => {
+    b.classList.add('wide');
+    const box = b.querySelector('#sLines');
+    const sync = (l, name) => { const it = findItem(name); l.itemId = it ? it.uid : null; if (it) { l.unit = it.unit; l.spec = l.spec || it.spec; if (IN && !l.price && it.price) l.price = it.price; } };
+    lines.forEach(l => { if (!l.itemId || !S.items[l.itemId]) sync(l, l.name); });
+    const draw = () => {
+      box.innerHTML = `<div class="itbl-wrap"><table class="itbl edit it-kho"><thead><tr><th style="width:4%">#</th><th style="width:34%">Vật tư</th><th style="width:10%">ĐVT</th><th style="width:12%" class="num">Tồn hiện tại</th><th style="width:12%" class="num">SL ${IN ? 'nhập' : 'xuất'}</th>${IN ? '<th style="width:14%" class="num">Đơn giá</th><th style="width:14%" class="num">Thành tiền</th>' : ''}<th style="width:4%"></th></tr></thead><tbody>
+        ${lines.map((l, i) => { const it = l.itemId && S.items[l.itemId]; return `<tr>
+          <td class="no">${i + 1}</td>
+          <td data-l="Vật tư" class="c-ten"><input class="in" data-i="${i}" data-f="name" list="dlItems" value="${esc(l.name || '')}" placeholder="Tên vật tư">${!it && l.name ? `<span class="newtag">${IN ? 'mới' : 'chưa có'}</span>` : ''}</td>
+          <td data-l="ĐVT"><input class="in" data-i="${i}" data-f="unit" value="${esc(l.unit || '')}" ${it ? 'readonly' : ''}></td>
+          <td data-l="Tồn" class="num tcalc">${it ? fmtQ(it.qty) : '—'}</td>
+          <td data-l="SL"><input class="in num" data-i="${i}" data-f="qty" inputmode="decimal" value="${l.qty ?? ''}"></td>
+          ${IN ? `<td data-l="Đơn giá"><input class="in num" data-i="${i}" data-f="price" inputmode="numeric" value="${l.price ? (+l.price).toLocaleString('vi-VN') : ''}"></td><td data-l="Thành tiền" class="num tcalc" data-tt="${i}">${fmtMoney((+l.qty || 0) * (+l.price || 0))}</td>` : ''}
+          <td class="tdel"><button type="button" class="ib del" data-del="${i}">${ICON.x}</button></td></tr>`; }).join('')}</tbody>
+        ${IN ? `<tfoot><tr><td colspan="6" class="num"><b>Tổng cộng</b></td><td colspan="2" class="num"><b id="sTot">${fmtMoney(lines.reduce((s, l) => s + (+l.qty || 0) * (+l.price || 0), 0))}</b></td></tr></tfoot>` : ''}</table></div>
+        <button type="button" class="btn ghost sm" data-add style="margin-top:8px">+ Thêm dòng</button>`;
+      $$('input', box).forEach(inp => {
+        const l = lines[+inp.dataset.i], f = inp.dataset.f;
+        inp.oninput = () => {
+          if (f === 'price') { const n = parseMoney(inp.value); l.price = n; inp.value = n ? n.toLocaleString('vi-VN') : ''; }
+          else if (f === 'qty') l.qty = inp.value;
+          else l[f] = inp.value;
+          if (IN) { const tt = box.querySelector(`[data-tt="${inp.dataset.i}"]`); if (tt) tt.textContent = fmtMoney((+parseQ(l.qty)) * (+l.price || 0)); const st = box.querySelector('#sTot'); if (st) st.textContent = fmtMoney(lines.reduce((s, x) => s + parseQ(x.qty) * (+x.price || 0), 0)); }
+        };
+        if (f === 'name') inp.onchange = () => { sync(l, inp.value); draw(); };
+      });
+      $$('[data-del]', box).forEach(x => x.onclick = () => { lines.splice(+x.dataset.del, 1); if (!lines.length) lines.push({}); draw(); });
+      box.querySelector('[data-add]').onclick = () => { lines.push({}); draw(); $$('tbody tr', box).pop().querySelector('input').focus(); };
+    };
+    draw();
+    b.querySelector('[data-x]').onclick = closeModal;
+    b.querySelector('[data-ok]').onclick = async e => {
+      const ls = lines.map(l => ({ ...l, name: (l.name || '').trim(), unit: (l.unit || '').trim(), qty: parseQ(l.qty) })).filter(l => l.name);
+      if (!ls.length) { toast('Nhập ít nhất 1 vật tư.'); return; }
+      const bad = ls.find(l => !(l.qty > 0)); if (bad) { toast(`Số lượng của "${bad.name}" phải lớn hơn 0.`); return; }
+      const A = b.querySelector('#sA').value.trim(), B = b.querySelector('#sB').value.trim();
+      if (!IN && !A) { toast('Nhập công trình nhận.'); return; }
+      const m = { type, date: b.querySelector('#sDate').value || ymd(), note: b.querySelector('#sNote').value.trim(), ...(IN ? { ncc: A, congtrinh: B } : { congtrinh: A, nguoinhan: B }), ...(pre.refTask ? { refTask: pre.refTask, refCode: pre.refCode } : {}) };
+      const btn = e.target; btn.disabled = true; btn.textContent = 'Đang lưu…';
+      try { const r = await saveMove(m, ls); closeModal(); toast(`Đã lưu ${MV[type].l.toLowerCase()} ${r.code}.`); onDone && onDone(r); }
+      catch (err) { btn.disabled = false; btn.textContent = IN ? 'Lưu phiếu nhập' : 'Lưu phiếu xuất'; toast(err.code ? errMsg(err) : err.message); }
+    };
+  });
+}
+
+/* ---------- ITEM DIALOG ---------- */
+function itemDialog(id) {
+  const it = id ? S.items[id] : null, w = isKho();
+  const hist = it ? S.moves.filter(m => (m.itemIds || []).includes(id)).slice(0, 30) : [];
+  openModal(`<h3>${it ? esc(it.name) : 'Vật tư mới'}</h3>${it ? `<p class="hint">Tồn hiện tại: <b style="font-size:16px;color:var(--tx)">${fmtQ(it.qty)} ${esc(it.unit || '')}</b>${lowStock(it) ? ' · <span style="color:var(--late)">dưới mức tối thiểu</span>' : ''}</p>` : ''}
+    <div class="grid" style="margin-top:12px">
+      <div class="grid g3"><div><label class="f">Mã vật tư</label><input class="in" id="iCode" value="${esc(it ? it.code || '' : 'VT' + rid(4, 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'))}" ${w ? '' : 'disabled'}></div>
+        <div style="grid-column:span 2"><label class="f">Tên vật tư <span class="req">*</span></label><input class="in" id="iName" value="${esc(it ? it.name : '')}" ${w ? '' : 'disabled'}></div></div>
+      <div class="grid g3"><div><label class="f">Quy cách / model</label><input class="in" id="iSpec" value="${esc(it ? it.spec || '' : '')}" ${w ? '' : 'disabled'}></div>
+        <div><label class="f">Đơn vị tính <span class="req">*</span></label><input class="in" id="iUnit" value="${esc(it ? it.unit || '' : '')}" placeholder="cái, bình, m, bộ…" ${w ? '' : 'disabled'}></div>
+        <div><label class="f">Tồn tối thiểu (cảnh báo)</label><input class="in num" id="iMin" inputmode="decimal" value="${it && it.min ? it.min : ''}" ${w ? '' : 'disabled'}></div></div>
+      <div><label class="f">Nhóm</label><input class="in" id="iGroup" list="dlGroups" value="${esc(it ? it.group || '' : '')}" placeholder="VD: Bình chữa cháy, Sprinkler, Báo cháy, Ống & phụ kiện" ${w ? '' : 'disabled'}>
+        <datalist id="dlGroups">${[...new Set(itemList().map(i => i.group).filter(Boolean))].map(g => `<option value="${esc(g)}">`).join('')}</datalist></div>
+      ${it && w ? `<div class="kk"><b>Kiểm kê</b> – nhập số tồn thực tế để điều chỉnh:<div class="kkrow"><input class="in num" id="iReal" inputmode="decimal" placeholder="${fmtQ(it.qty)}"><input class="in" id="iWhy" placeholder="Lý do (hư hỏng, thất thoát, đếm lại…)"><button class="btn warn sm" id="iAdj" type="button">Điều chỉnh</button></div></div>` : ''}
+      ${it ? `<div><label class="f">Lịch sử nhập/xuất gần đây</label>${hist.length ? `<ul class="log">${hist.map(m => { const q = (m.items || []).filter(x => x.itemId === id).reduce((s, x) => s + x.qty, 0); return `<li><div class="lh"><span class="badge ${MV[m.type].c}">${MV[m.type].l}</span><a href="#pk-${esc(m.id)}">${esc(m.code)}</a><span>${fmtD(m.date)}</span><b>${m.type === 'out' ? '−' : q < 0 ? '' : '+'}${fmtQ(q)} ${esc(it.unit || '')}</b><span>${esc(m.congtrinh || m.ncc || m.note || '')}</span></div></li>`; }).join('')}</ul>` : '<p class="hint" style="margin:0">Chưa có phiếu nào.</p>'}</div>` : ''}
+    </div>
+    <div class="mact">${it && isAdmin() ? '<button class="btn dghost" id="iDel" style="margin-right:auto">Xóa vật tư</button>' : ''}<button class="btn ghost" data-x>Đóng</button>${w ? '<button class="btn" data-ok>Lưu</button>' : ''}</div>`, b => {
+    b.classList.add('wide');
+    b.querySelector('[data-x]').onclick = closeModal;
+    const ok = b.querySelector('[data-ok]');
+    ok && (ok.onclick = async () => {
+      const v = { code: b.querySelector('#iCode').value.trim(), name: b.querySelector('#iName').value.trim(), spec: b.querySelector('#iSpec').value.trim(), unit: b.querySelector('#iUnit').value.trim(), min: parseQ(b.querySelector('#iMin').value), group: b.querySelector('#iGroup').value.trim(), updatedAt: Date.now() };
+      if (!v.name || !v.unit) { toast('Nhập tên và đơn vị tính.'); return; }
+      const dup = findItem(v.name); if (dup && dup.uid !== id) { toast('Đã có vật tư cùng tên trong danh mục.'); return; }
+      try { if (it) await updateDoc(doc(db, 'items', id), v); else await setDoc(doc(db, 'items', rid(12)), { ...v, qty: 0, price: 0, createdAt: Date.now() }); closeModal(); toast('Đã lưu vật tư.'); }
+      catch (err) { toast(errMsg(err)); }
+    });
+    const adj = b.querySelector('#iAdj');
+    adj && (adj.onclick = async () => {
+      const raw = b.querySelector('#iReal').value; if (raw === '') { toast('Nhập số tồn thực tế.'); return; }
+      const real = parseQ(raw), why = b.querySelector('#iWhy').value.trim(), d = Math.round((real - (+it.qty || 0)) * 1000) / 1000;
+      if (!d) { toast('Tồn thực tế bằng tồn trên hệ thống, không cần điều chỉnh.'); return; }
+      if (!why) { toast('Nhập lý do điều chỉnh.'); return; }
+      adj.disabled = true;
+      try { const r = await saveMove({ type: 'adjust', date: ymd(), note: `Kiểm kê ${it.name}: ${fmtQ(it.qty)} → ${fmtQ(real)}. ${why}` }, [{ itemId: id, name: it.name, spec: it.spec, unit: it.unit, qty: d, price: 0 }]); closeModal(); toast(`Đã điều chỉnh tồn (${r.code}).`); }
+      catch (err) { adj.disabled = false; toast(err.code ? errMsg(err) : err.message); }
+    });
+    const del = b.querySelector('#iDel');
+    del && (del.onclick = async () => {
+      if ((+it.qty || 0) !== 0) { toast('Chỉ xóa được vật tư có tồn = 0. Hãy kiểm kê về 0 trước.'); return; }
+      if (!await confirmBox('Xóa vật tư?', `Xóa "${it.name}" khỏi danh mục? Các phiếu cũ vẫn giữ nguyên.`, 'Xóa', true)) return;
+      try { await deleteDoc(doc(db, 'items', id)); toast('Đã xóa vật tư.'); } catch (err) { toast(errMsg(err)); }
+    });
+  });
+}
+
+/* ---------- PRINT PHIẾU KHO ---------- */
+function vMovePrint(a) {
+  const m = S.moves.find(x => x.id === S.param);
+  if (!m) { a.innerHTML = `<div class="crumb"><a href="#kho">← Kho</a></div><div class="card empty">${S.loaded ? 'Không tìm thấy phiếu.' : 'Đang tải…'}</div>`; return; }
+  const T = MV[m.type], d = parseD(m.date || ymd()), IN = m.type === 'in', price = IN && m.items.some(x => x.price);
+  const signs = IN ? ['Người lập phiếu', 'Người giao hàng', 'Thủ kho', 'Kế toán'] : m.type === 'out' ? ['Người lập phiếu', 'Người nhận hàng', 'Thủ kho', 'Kế toán'] : ['Người lập', 'Thủ kho', 'Kế toán'];
+  a.innerHTML = `
+    <div class="noprint ptool"><a class="btn ghost" href="#kho">← Kho</a>${m.refTask ? `<a class="btn ghost" href="#hs-${esc(m.refTask)}">Xem đơn ${esc(m.refCode || '')}</a>` : ''}<button class="btn" id="pGo">🖨 In / Lưu PDF</button></div>
+    <div class="sheet">
+      <div class="shead"><div><b>${COMPANY.name}</b><br><span>${COMPANY.addr}</span></div><div class="c" style="text-align:right">Số: <b>${esc(m.code)}</b><br>${m.refCode ? 'Theo đơn: ' + esc(m.refCode) : ''}</div></div>
+      <h1 class="stitle">${T.t}</h1>
+      <p class="sto"><i>Ngày ${pad(d.getDate())} tháng ${pad(d.getMonth() + 1)} năm ${d.getFullYear()}</i></p>
+      <table class="ftbl print">
+        ${IN ? `<tr><td class="fk">Nhà cung cấp</td><td class="fv">${esc(m.ncc || '—')}</td></tr>` : ''}
+        ${m.congtrinh ? `<tr><td class="fk">${IN ? 'Cho công trình' : 'Công trình nhận'}</td><td class="fv">${esc(m.congtrinh)}</td></tr>` : ''}
+        ${m.nguoinhan ? `<tr><td class="fk">Người nhận</td><td class="fv">${esc(m.nguoinhan)}</td></tr>` : ''}
+        ${m.note ? `<tr><td class="fk">Ghi chú</td><td class="fv">${esc(m.note)}</td></tr>` : ''}
+      </table>
+      <div class="itbl-wrap" style="margin-top:10px"><table class="itbl view"><thead><tr><th>#</th><th>Tên vật tư</th><th>Quy cách</th><th>ĐVT</th><th class="num">Số lượng</th>${price ? '<th class="num">Đơn giá</th><th class="num">Thành tiền</th>' : ''}</tr></thead><tbody>
+        ${m.items.map((x, i) => `<tr><td class="no">${i + 1}</td><td>${esc(x.name)}</td><td>${esc(x.spec || '')}</td><td>${esc(x.unit || '')}</td><td class="num">${fmtQ(x.qty)}</td>${price ? `<td class="num">${fmtMoney(x.price)}</td><td class="num">${fmtMoney(x.qty * x.price)}</td>` : ''}</tr>`).join('')}</tbody>
+        ${price ? `<tfoot><tr><td colspan="6" class="num"><b>Tổng cộng</b></td><td class="num"><b>${fmtMoney(m.total)}</b></td></tr><tr><td colspan="7" class="num"><i>Bằng chữ: ${docSo(m.total)}</i></td></tr></tfoot>` : ''}</table></div>
+      <div class="signs" style="grid-template-columns:repeat(${signs.length},1fr);margin-top:22px">${signs.map((s, i) => `<div><b>${s.toUpperCase()}</b><div class="sig">${i === 0 ? `<small>(đã lập trên hệ thống)<br>${fmtT(m.createdAt)}</small>` : '<small>(Ký, ghi rõ họ tên)</small>'}</div><span>${i === 0 ? esc(m.by || '') : ''}</span></div>`).join('')}</div>
+      <p class="sfoot">Phiếu lập trên Hệ thống giao việc ARCOTEK – arcotek.vn/giaoviec · ${esc(m.code)}</p>
+    </div>`;
+  $('#pGo').onclick = () => window.print();
+}
+
+/* ---------- NỐI VỚI ĐƠN TỪ ---------- */
+function exportFromForm(t) {
+  const d = (t.form && t.form.data) || {};
+  const lines = (d.items || []).map(r => { const it = (r.itemId && S.items[r.itemId]) || findItem(r.ten); return { itemId: it ? it.uid : null, name: it ? it.name : (r.ten || ''), spec: r.qc || (it && it.spec) || '', unit: it ? it.unit : (r.dvt || ''), qty: parseQ(r.sl) }; });
+  stockDialog('out', { lines, congtrinh: d.congtrinh, nguoinhan: d.nguoinhan, note: `Theo đề nghị xuất vật tư ${t.code} của ${t.assigneeName}`, refTask: t.id, refCode: t.code }, async r => {
+    try {
+      let finished = false;
+      await mutateTask(t.id, x => {
+        const k = x.steps.findIndex(s => s.status !== 'done'), s = x.steps[k], now = Date.now(); if (!s) return;
+        s.status = 'done'; s.pct = 100; s.doneAt = now; s.doneBy = S.me.name;
+        x.log = [logEntry('approve', `Đã xuất kho – phiếu ${r.code}.`, { step: s.name }), ...(x.log || [])];
+        if (x.steps.every(y => y.status === 'done')) { x.completedAt = now; finished = true; }
+      }, FORM_KEYS);
+      notify(t.id, finished ? 'done' : 'next');
+    } catch (err) { toast('Đã xuất kho nhưng chưa cập nhật được đơn: ' + errMsg(err)); }
+  });
+}
+function importFromForm(t) {
+  const d = (t.form && t.form.data) || {};
+  const lines = (d.items || []).map(r => { const it = findItem(r.ten); return { itemId: it ? it.uid : null, name: it ? it.name : (r.ten || ''), unit: it ? it.unit : (r.dvt || ''), qty: parseQ(r.sl), price: +r.gia || 0 }; });
+  stockDialog('in', { lines, ncc: d.ncc, congtrinh: d.congtrinh, note: `Nhập theo đề nghị mua hàng ${t.code}`, refTask: t.id, refCode: t.code });
 }
 
 /* ================= modal ================= */
